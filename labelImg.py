@@ -760,7 +760,6 @@ class MainWindow(QMainWindow, WindowMixin):
             item.setText(text)
             item.setBackground(generate_color_by_text(text))
             self.set_dirty()
-            self.update_combo_box()
 
     # Tzutalin 20160906 : Add file list and dock to move faster
     def file_item_double_clicked(self, item=None):
@@ -823,7 +822,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.label_list.addItem(item)
         for action in self.actions.onShapesPresent:
             action.setEnabled(True)
-        self.update_combo_box()
+        
 
     def remove_label(self, shape):
         if shape is None:
@@ -833,7 +832,6 @@ class MainWindow(QMainWindow, WindowMixin):
         self.label_list.takeItem(self.label_list.row(item))
         del self.shapes_to_items[shape]
         del self.items_to_shapes[item]
-        self.update_combo_box()
 
     def load_labels(self, shapes):
         s = []
