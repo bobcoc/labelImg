@@ -1519,7 +1519,32 @@ class MainWindow(QMainWindow, WindowMixin):
         if delete_path is not None:
             idx = self.cur_img_idx
             if os.path.exists(delete_path):
+                # Delete the image file
                 os.remove(delete_path)
+                
+                # Delete corresponding annotation files
+                filename = os.path.splitext(delete_path)[0]
+                xml_file = filename + XML_EXT
+                txt_file = filename + TXT_EXT  
+                json_file = filename + JSON_EXT
+
+                # Also check annotation files in default save directory
+                if self.default_save_dir:
+                    basename = os.path.basename(os.path.splitext(delete_path)[0])
+                    xml_file_def = os.path.join(self.default_save_dir, basename + XML_EXT)
+                    txt_file_def = os.path.join(self.default_save_dir, basename + TXT_EXT)
+                    json_file_def = os.path.join(self.default_save_dir, basename + JSON_EXT)
+                    
+                    # Try to remove annotation files from default save directory
+                    for f in [xml_file_def, txt_file_def, json_file_def]:
+                        if os.path.exists(f):
+                            os.remove(f)
+
+                # Try to remove annotation files from image directory
+                for f in [xml_file, txt_file, json_file]:
+                    if os.path.exists(f):
+                        os.remove(f)
+
             self.import_dir_images(self.last_open_dir)
             if self.img_count > 0:
                 self.cur_img_idx = min(idx, self.img_count - 1)

@@ -134,10 +134,21 @@ class YoloReader:
         return label, x_min, y_min, x_max, y_max
 
     def parse_yolo_format(self):
-        bnd_box_file = open(self.file_path, 'r')
-        for bndBox in bnd_box_file:
-            class_index, x_center, y_center, w, h = bndBox.strip().split(' ')
-            label, x_min, y_min, x_max, y_max = self.yolo_line_to_shape(class_index, x_center, y_center, w, h)
-
-            # Caveat: difficult flag is discarded when saved as yolo format.
-            self.add_shape(label, x_min, y_min, x_max, y_max, False)
+        try:
+            bnd_box_file = open(self.file_path, 'r')
+            for bndBox in bnd_box_file:
+                try:
+                    class_index, x_center, y_center, w, h = bndBox.strip().split(' ')
+                    try:
+                        label, x_min, y_min, x_max, y_max = self.yolo_line_to_shape(class_index, x_center, y_center, w, h)
+                        self.add_shape(label, x_min, y_min, x_max, y_max, False)
+                    except IndexError:
+                        print(f"Error: Class index {class_index} out of range in file {self.file_path}")
+                        print(f"Available classes: {self.classes}")
+                        raise
+                except Exception as e:
+                    print(f"Error parsing line in {self.file_path}: {bndBox.strip()}")
+                    print(f"Error message: {str(e)}")
+                    raise
+        finally:
+            bnd_box_file.close()

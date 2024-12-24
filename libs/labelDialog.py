@@ -13,9 +13,10 @@ BB = QDialogButtonBox
 
 class LabelDialog(QDialog):
 
-    def __init__(self, text="Enter object label", parent=None, list_item=None):
+    def __init__(self, text="Enter object label", parent=None, list_item=None, default_item="L"):
         super(LabelDialog, self).__init__(parent)
 
+        self.default_item = default_item
         self.edit = QLineEdit()
         self.edit.setText(text)
         self.edit.setValidator(label_validator())
@@ -60,6 +61,12 @@ class LabelDialog(QDialog):
         If the user entered a label, that label is returned, otherwise (i.e. if the user cancelled the action)
         `None` is returned.
         """
+        if self.list_widget and self.list_widget.count() > 0:
+            items = self.list_widget.findItems(self.default_item, Qt.MatchExactly)
+            if items:
+                self.list_widget.setCurrentItem(items[0])
+                text = trimmed(items[0].text())
+        
         self.edit.setText(text)
         self.edit.setSelection(0, len(text))
         self.edit.setFocus(Qt.PopupFocusReason)
