@@ -538,6 +538,16 @@ class MainWindow(QMainWindow, WindowMixin):
         # Open Dir if default file
         if self.file_path and os.path.isdir(self.file_path):
             self.open_dir_dialog(dir_path=self.file_path, silent=True)
+        # Add auto trigger for change save dir
+        if self.default_save_dir:
+            print("Auto trigger for change save dir",self.default_save_dir)
+            QTimer.singleShot(100, lambda: self.change_save_dir_dialog(self.default_save_dir))
+
+        # Since loading the file may take some time, make sure it runs in the background.
+        if self.file_path and os.path.isdir(self.file_path):
+            self.queue_event(partial(self.import_dir_images, self.file_path or ""))
+        elif self.file_path:
+            self.queue_event(partial(self.load_file, self.file_path or ""))            
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
@@ -1292,14 +1302,24 @@ class MainWindow(QMainWindow, WindowMixin):
         return images
 
     def change_save_dir_dialog(self, _value=False):
+        if isinstance(_value, str) and os.path.isdir(_value):
+            # If a valid directory path is provided, use it directly
+            self.default_save_dir = _value
+            self.show_bounding_box_from_annotation_file(self.file_path)
+            self.statusBar().showMessage('%s . Annotation will be saved to %s' %
+                                        ('Change saved folder', self.default_save_dir))
+            print("Change saved folder", self.default_save_dir)
+            self.statusBar().show()
+            return
+
         if self.default_save_dir is not None:
             path = ustr(self.default_save_dir)
         else:
             path = '.'
 
         dir_path = ustr(QFileDialog.getExistingDirectory(self,
-                                                         '%s - Save annotations to the directory' % __appname__, path,  QFileDialog.ShowDirsOnly
-                                                         | QFileDialog.DontResolveSymlinks))
+                                                        '%s - Save annotations to the directory' % __appname__, path,  QFileDialog.ShowDirsOnly
+                                                        | QFileDialog.DontResolveSymlinks))
 
         if dir_path is not None and len(dir_path) > 1:
             self.default_save_dir = dir_path
@@ -1307,7 +1327,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.show_bounding_box_from_annotation_file(self.file_path)
 
         self.statusBar().showMessage('%s . Annotation will be saved to %s' %
-                                     ('Change saved folder', self.default_save_dir))
+                                    ('Change saved folder', self.default_save_dir))
         self.statusBar().show()
 
 
@@ -1353,9 +1373,16 @@ class MainWindow(QMainWindow, WindowMixin):
                                                                     QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks))
         else:
             target_dir_path = ustr(default_open_dir_path)
+        
+        # Store the original save_dir
+        original_save_dir = self.default_save_dir
+        
         self.last_open_dir = target_dir_path
         self.import_dir_images(target_dir_path)
-        self.default_save_dir = target_dir_path
+        
+        # Restore the original save_dir instead of setting it to the image directory
+        self.default_save_dir = original_save_dir
+        
         if self.file_path:
             self.show_bounding_box_from_annotation_file(file_path=self.file_path)
 
