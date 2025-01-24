@@ -1728,9 +1728,6 @@ class MainWindow(QMainWindow, WindowMixin):
         """删除画布上当前可见的标注"""
         print("delete_visible_shapes method called")
         
-        # 首先确保所有标注的可见性状态正确
-        self.canvas.show_all_shapes()  # 这会重置所有标注的fill属性为True
-        
         # 获取所有可见的标注
         visible_shapes = [shape for shape in self.canvas.shapes if shape.fill]
         
