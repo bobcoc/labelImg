@@ -1728,12 +1728,19 @@ class MainWindow(QMainWindow, WindowMixin):
         """删除画布上当前可见的标注"""
         print("delete_visible_shapes method called")
         
-        # 获取所有可见的标注
-        visible_shapes = [shape for shape in self.canvas.shapes if shape.fill]
+        # 获取当前组合框中选中的标签
+        current_label = self.combo_box.cb.currentText()
+        print(f"Current selected label in combo box: {current_label}")
         
-        print(f"Found {len(visible_shapes)} visible shapes")
-        for shape in visible_shapes:
-            print(f"Shape: {shape.label}, fill: {shape.fill}")
+        # 获取所有可见的标注
+        visible_shapes = []
+        for item, shape in self.items_to_shapes.items():
+            # 检查标签列表中的项是否被选中显示
+            is_checked = item.checkState() == Qt.Checked
+            # 如果组合框为空，显示所有选中的项；否则只显示匹配当前标签的选中项
+            if is_checked and (not current_label or shape.label == current_label):
+                visible_shapes.append(shape)
+                print(f"Found visible shape: {shape.label}, checked: {is_checked}")
         
         if not visible_shapes:
             QMessageBox.information(self, '提示', '当前没有可见的标注')
@@ -1769,7 +1776,7 @@ class MainWindow(QMainWindow, WindowMixin):
             print("\nAfter deletion:")
             print(f"Remaining shapes: {len(self.canvas.shapes)}")
             for shape in self.canvas.shapes:
-                print(f"Remaining shape: {shape.label}, fill: {shape.fill}")
+                print(f"Remaining shape: {shape.label}")
             
             # 如果没有任何形状了，则禁用相关动作
             if self.no_shapes():
