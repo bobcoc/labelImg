@@ -1728,12 +1728,17 @@ class MainWindow(QMainWindow, WindowMixin):
         """删除画布上当前可见的标注"""
         print("delete_visible_shapes method called")
         
+        # 使用原有逻辑：如果形状的fill为False，说明它是隐藏的
+        visible_shapes = [shape for shape in self.canvas.shapes if shape.fill]
+        if not visible_shapes:
+            QMessageBox.information(self, '提示', '当前没有可见的标注')
+            return
+        
         reply = QMessageBox.question(self, '确认', 
-                                   "确定要删除所有可见的标注吗?",
+                                   f"确定要删除所有可见的标注吗？（共{len(visible_shapes)}个）",
                                    QMessageBox.Yes | QMessageBox.No)
                                    
         if reply == QMessageBox.Yes:
-            visible_shapes = [shape for shape in self.canvas.shapes if shape.visible]
             for shape in visible_shapes:
                 self.remove_label(shape)
                 self.canvas.shapes.remove(shape)
