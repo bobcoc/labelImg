@@ -279,9 +279,12 @@ class MainWindow(QMainWindow, WindowMixin):
                         'w', 'new', get_str('crtBoxDetail'), enabled=False)
         delete = action(get_str('delBox'), self.delete_selected_shape,
                         'Delete', 'delete', get_str('delBoxDetail'), enabled=False)
+                        
+        # 现在使用从语言文件中获取的字符串
         delete_visible = action(get_str('deleteVisible'), self.delete_visible_shapes,
                               'Ctrl+Shift+X', 'delete', get_str('deleteVisibleDetail'),
                               enabled=False)
+                        
         copy = action(get_str('dupBox'), self.copy_selected_shape,
                       'Ctrl+D', 'copy', get_str('dupBoxDetail'),
                       enabled=False)
