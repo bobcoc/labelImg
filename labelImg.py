@@ -1748,9 +1748,17 @@ class MainWindow(QMainWindow, WindowMixin):
             # 创建一个副本来遍历，因为我们会在循环中修改原列表
             shapes_to_delete = visible_shapes[:]
             for shape in shapes_to_delete:
-                self.remove_label(shape)
-                if shape in self.canvas.shapes:  # 确保shape还在列表中
+                # 从标签列表中移除
+                item = self.shapes_to_items.get(shape)
+                if item is not None:
+                    self.label_list.takeItem(self.label_list.row(item))
+                    del self.shapes_to_items[shape]
+                    del self.items_to_shapes[item]
+                
+                # 从画布中移除
+                if shape in self.canvas.shapes:
                     self.canvas.shapes.remove(shape)
+            
             self.canvas.update()
             self.set_dirty()
             
