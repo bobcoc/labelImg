@@ -1728,13 +1728,19 @@ class MainWindow(QMainWindow, WindowMixin):
         """删除画布上当前可见的标注"""
         print("delete_visible_shapes method called")
         
-        # 获取所有可见的标注
-        # 一个标注如果没有被隐藏，那么它的fill属性就会是True
-        visible_shapes = [shape for shape in self.canvas.shapes if shape.fill]
+        # 打印所有标注的状态
+        print("All shapes status:")
+        for shape in self.canvas.shapes:
+            print(f"Shape: {shape.label}, fill: {shape.fill}, selected: {shape.selected}, points: {shape.points}")
         
-        print(f"Found {len(visible_shapes)} visible shapes")  # 调试信息
-        for shape in visible_shapes:
-            print(f"Shape: {shape.label}, fill: {shape.fill}")  # 调试信息
+        # 获取所有可见的标注
+        visible_shapes = []
+        for shape in self.canvas.shapes:
+            if shape.fill:  # 标注是可见的
+                visible_shapes.append(shape)
+                print(f"Adding visible shape: {shape.label}")
+        
+        print(f"Found {len(visible_shapes)} visible shapes")
         
         if not visible_shapes:
             QMessageBox.information(self, '提示', '当前没有可见的标注')
@@ -1748,22 +1754,33 @@ class MainWindow(QMainWindow, WindowMixin):
             # 创建一个副本来遍历，因为我们会在循环中修改原列表
             shapes_to_delete = visible_shapes[:]
             for shape in shapes_to_delete:
+                print(f"Deleting shape: {shape.label}")
                 # 从标签列表中移除
                 item = self.shapes_to_items.get(shape)
                 if item is not None:
+                    print(f"Removing item from label list: {item.text()}")
                     self.label_list.takeItem(self.label_list.row(item))
                     del self.shapes_to_items[shape]
                     del self.items_to_shapes[item]
                 
                 # 从画布中移除
                 if shape in self.canvas.shapes:
+                    print(f"Removing shape from canvas: {shape.label}")
                     self.canvas.shapes.remove(shape)
             
+            print("Updating canvas")
             self.canvas.update()
             self.set_dirty()
             
+            # 检查删除后的状态
+            print("\nAfter deletion:")
+            print(f"Remaining shapes: {len(self.canvas.shapes)}")
+            for shape in self.canvas.shapes:
+                print(f"Remaining shape: {shape.label}, fill: {shape.fill}")
+            
             # 如果没有任何形状了，则禁用相关动作
             if self.no_shapes():
+                print("No shapes remaining, disabling actions")
                 for action in self.actions.onShapesPresent:
                     action.setEnabled(False)
 
