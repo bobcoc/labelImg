@@ -381,7 +381,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Store actions for further handling.
         self.actions = Struct(save=save, save_format=save_format, saveAs=save_as, open=open, close=close, resetAll=reset_all, deleteImg=delete_image,
-                              lineColor=color1, create=create, delete=delete, edit=edit, copy=copy,
+                              lineColor=color1, create=create, delete=delete, deleteVisible=self.delete_visible_shapes, edit=edit, copy=copy,
                               createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
                               shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
                               zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
@@ -392,8 +392,7 @@ class MainWindow(QMainWindow, WindowMixin):
                               fileMenuActions=(
                                   open, open_dir, save, save_as, close, reset_all, quit),
                               beginner=(), advanced=(),
-                              editMenu=(edit, copy, delete,
-                                        None, color1, self.draw_squares_option),
+                              editMenu=(edit, copy, delete, delete_visible, color1, self.draw_squares_option),
                               beginnerContext=(create, edit, copy, delete),
                               advancedContext=(create_mode, edit_mode, edit, copy,
                                                delete, shape_line_color, shape_fill_color),
@@ -1718,6 +1717,25 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def toggle_draw_square(self):
         self.canvas.set_drawing_shape_to_square(self.draw_squares_option.isChecked())
+
+    def delete_visible_shapes(self):
+        """删除画布上当前可见的标注"""
+        reply = QMessageBox.question(self, '确认', 
+                                   "确定要删除所有可见的标注吗?",
+                                   QMessageBox.Yes | QMessageBox.No)
+                                   
+        if reply == QMessageBox.Yes:
+            visible_shapes = [shape for shape in self.canvas.shapes if shape.visible]
+            for shape in visible_shapes:
+                self.remove_label(shape)
+                self.canvas.shapes.remove(shape)
+            self.canvas.update()
+            self.set_dirty()
+            
+            # 如果没有任何形状了，则禁用相关动作
+            if self.no_shapes():
+                for action in self.actions.onShapesPresent:
+                    action.setEnabled(False)
 
 def inverted(color):
     return QColor(*[255 - v for v in color.getRgb()])
