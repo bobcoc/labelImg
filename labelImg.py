@@ -1728,19 +1728,15 @@ class MainWindow(QMainWindow, WindowMixin):
         """删除画布上当前可见的标注"""
         print("delete_visible_shapes method called")
         
-        # 打印所有标注的状态
-        print("All shapes status:")
-        for shape in self.canvas.shapes:
-            print(f"Shape: {shape.label}, fill: {shape.fill}, selected: {shape.selected}, points: {shape.points}")
+        # 首先确保所有标注的可见性状态正确
+        self.canvas.show_all_shapes()  # 这会重置所有标注的fill属性为True
         
         # 获取所有可见的标注
-        visible_shapes = []
-        for shape in self.canvas.shapes:
-            if shape.fill:  # 标注是可见的
-                visible_shapes.append(shape)
-                print(f"Adding visible shape: {shape.label}")
+        visible_shapes = [shape for shape in self.canvas.shapes if shape.fill]
         
         print(f"Found {len(visible_shapes)} visible shapes")
+        for shape in visible_shapes:
+            print(f"Shape: {shape.label}, fill: {shape.fill}")
         
         if not visible_shapes:
             QMessageBox.information(self, '提示', '当前没有可见的标注')
@@ -1783,6 +1779,12 @@ class MainWindow(QMainWindow, WindowMixin):
                 print("No shapes remaining, disabling actions")
                 for action in self.actions.onShapesPresent:
                     action.setEnabled(False)
+
+    def show_all_shapes(self):
+        """显示所有标注"""
+        for shape in self.shapes:
+            shape.fill = True
+        self.update()
 
 def inverted(color):
     return QColor(*[255 - v for v in color.getRgb()])
