@@ -279,6 +279,9 @@ class MainWindow(QMainWindow, WindowMixin):
                         'w', 'new', get_str('crtBoxDetail'), enabled=False)
         delete = action(get_str('delBox'), self.delete_selected_shape,
                         'Delete', 'delete', get_str('delBoxDetail'), enabled=False)
+        delete_visible = action(get_str('deleteVisible'), self.delete_visible_shapes,
+                              'Ctrl+Shift+X', 'delete', get_str('deleteVisibleDetail'),
+                              enabled=False)
         copy = action(get_str('dupBox'), self.copy_selected_shape,
                       'Ctrl+D', 'copy', get_str('dupBoxDetail'),
                       enabled=False)
@@ -381,7 +384,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Store actions for further handling.
         self.actions = Struct(save=save, save_format=save_format, saveAs=save_as, open=open, close=close, resetAll=reset_all, deleteImg=delete_image,
-                              lineColor=color1, create=create, delete=delete, deleteVisible=self.delete_visible_shapes, edit=edit, copy=copy,
+                              lineColor=color1, create=create, delete=delete, deleteVisible=delete_visible, edit=edit, copy=copy,
                               createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
                               shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
                               zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
