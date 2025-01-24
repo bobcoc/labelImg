@@ -283,7 +283,7 @@ class MainWindow(QMainWindow, WindowMixin):
         # 现在使用从语言文件中获取的字符串
         delete_visible = action(get_str('deleteVisible'), self.delete_visible_shapes,
                               'Ctrl+Shift+X', 'delete', get_str('deleteVisibleDetail'),
-                              enabled=False)
+                              enabled=True)
                         
         copy = action(get_str('dupBox'), self.copy_selected_shape,
                       'Ctrl+D', 'copy', get_str('dupBoxDetail'),
@@ -1726,6 +1726,8 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def delete_visible_shapes(self):
         """删除画布上当前可见的标注"""
+        print("delete_visible_shapes method called")
+        
         reply = QMessageBox.question(self, '确认', 
                                    "确定要删除所有可见的标注吗?",
                                    QMessageBox.Yes | QMessageBox.No)
