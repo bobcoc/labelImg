@@ -282,7 +282,7 @@ class MainWindow(QMainWindow, WindowMixin):
                         
         # 现在使用从语言文件中获取的字符串
         delete_visible = action(get_str('deleteVisible'), self.delete_visible_shapes,
-                              'Ctrl+Shift+X', 'delete', get_str('deleteVisibleDetail'),
+                              'Ctrl+Shift+K', 'delete', get_str('deleteVisibleDetail'),
                               enabled=True)
                         
         copy = action(get_str('dupBox'), self.copy_selected_shape,
@@ -1746,43 +1746,38 @@ class MainWindow(QMainWindow, WindowMixin):
             QMessageBox.information(self, '提示', '当前没有可见的标注')
             return
         
-        reply = QMessageBox.question(self, '确认', 
-                                   f"确定要删除所有可见的标注吗？（共{len(visible_shapes)}个）",
-                                   QMessageBox.Yes | QMessageBox.No)
-                                   
-        if reply == QMessageBox.Yes:
-            # 创建一个副本来遍历，因为我们会在循环中修改原列表
-            shapes_to_delete = visible_shapes[:]
-            for shape in shapes_to_delete:
-                print(f"Deleting shape: {shape.label}")
-                # 从标签列表中移除
-                item = self.shapes_to_items.get(shape)
-                if item is not None:
-                    print(f"Removing item from label list: {item.text()}")
-                    self.label_list.takeItem(self.label_list.row(item))
-                    del self.shapes_to_items[shape]
-                    del self.items_to_shapes[item]
-                
-                # 从画布中移除
-                if shape in self.canvas.shapes:
-                    print(f"Removing shape from canvas: {shape.label}")
-                    self.canvas.shapes.remove(shape)
+        # 创建一个副本来遍历，因为我们会在循环中修改原列表
+        shapes_to_delete = visible_shapes[:]
+        for shape in shapes_to_delete:
+            print(f"Deleting shape: {shape.label}")
+            # 从标签列表中移除
+            item = self.shapes_to_items.get(shape)
+            if item is not None:
+                print(f"Removing item from label list: {item.text()}")
+                self.label_list.takeItem(self.label_list.row(item))
+                del self.shapes_to_items[shape]
+                del self.items_to_shapes[item]
             
-            print("Updating canvas")
-            self.canvas.update()
-            self.set_dirty()
-            
-            # 检查删除后的状态
-            print("\nAfter deletion:")
-            print(f"Remaining shapes: {len(self.canvas.shapes)}")
-            for shape in self.canvas.shapes:
-                print(f"Remaining shape: {shape.label}")
-            
-            # 如果没有任何形状了，则禁用相关动作
-            if self.no_shapes():
-                print("No shapes remaining, disabling actions")
-                for action in self.actions.onShapesPresent:
-                    action.setEnabled(False)
+            # 从画布中移除
+            if shape in self.canvas.shapes:
+                print(f"Removing shape from canvas: {shape.label}")
+                self.canvas.shapes.remove(shape)
+        
+        print("Updating canvas")
+        self.canvas.update()
+        self.set_dirty()
+        
+        # 检查删除后的状态
+        print("\nAfter deletion:")
+        print(f"Remaining shapes: {len(self.canvas.shapes)}")
+        for shape in self.canvas.shapes:
+            print(f"Remaining shape: {shape.label}")
+        
+        # 如果没有任何形状了，则禁用相关动作
+        if self.no_shapes():
+            print("No shapes remaining, disabling actions")
+            for action in self.actions.onShapesPresent:
+                action.setEnabled(False)
 
     def show_all_shapes(self):
         """显示所有标注"""
