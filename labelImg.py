@@ -1841,11 +1841,16 @@ class MainWindow(QMainWindow, WindowMixin):
         if not self.canvas.selected_shape:
             QMessageBox.information(self, '提示', '请先选择一个标注')
             return
-        
+            
         shape = self.canvas.selected_shape
-        shape.fill = False
+        # 找到对应的列表项
+        item = self.shapes_to_items.get(shape)
+        if item:
+            # 设置复选框状态为未选中
+            item.setCheckState(Qt.Unchecked)
+        
+        # 更新画布
         self.canvas.update()
-        self.set_dirty()
 
 def inverted(color):
     return QColor(*[255 - v for v in color.getRgb()])
