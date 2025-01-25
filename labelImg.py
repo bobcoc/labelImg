@@ -554,6 +554,20 @@ class MainWindow(QMainWindow, WindowMixin):
         elif self.file_path:
             self.queue_event(partial(self.load_file, self.file_path or ""))            
 
+        # 添加新的快捷键动作
+        move_shapes_up = action(get_str('moveShapesUp'), partial(self.move_visible_shapes, 0, -1),
+                               'Ctrl+Shift+Up', 'up', get_str('moveShapesUpDetail'))
+        move_shapes_down = action(get_str('moveShapesDown'), partial(self.move_visible_shapes, 0, 1),
+                                 'Ctrl+Shift+Down', 'down', get_str('moveShapesDownDetail'))
+        move_shapes_left = action(get_str('moveShapesLeft'), partial(self.move_visible_shapes, -1, 0),
+                                 'Ctrl+Shift+Left', 'left', get_str('moveShapesLeftDetail'))
+        move_shapes_right = action(get_str('moveShapesRight'), partial(self.move_visible_shapes, 1, 0),
+                                  'Ctrl+Shift+Right', 'right', get_str('moveShapesRightDetail'))
+
+        # 将新动作添加到编辑菜单
+        add_actions(self.menus.edit, (None, move_shapes_up, move_shapes_down,
+                                     move_shapes_left, move_shapes_right))
+
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
             self.canvas.set_drawing_shape_to_square(False)
@@ -1336,6 +1350,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.statusBar().show()
 
 
+
     def open_annotation_dialog(self, _value=False):
         if self.file_path is None:
             self.statusBar().showMessage('Please select image first')
@@ -1784,6 +1799,37 @@ class MainWindow(QMainWindow, WindowMixin):
         for shape in self.shapes:
             shape.fill = True
         self.update()
+
+    def move_visible_shapes(self, dx, dy):
+        """移动所有可见的标注框
+        
+        Args:
+            dx: x方向的位移(像素)
+            dy: y方向的位移(像素)
+        """
+        # 获取当前组合框中选中的标签
+        current_label = self.combo_box.cb.currentText()
+        
+        # 标记是否有形状被移动
+        moved = False
+        
+        # 遍历所有形状
+        for item, shape in self.items_to_shapes.items():
+            # 检查标签列表中的项是否被选中显示
+            is_checked = item.checkState() == Qt.Checked
+            # 如果组合框为空，移动所有选中的项；否则只移动匹配当前标签的选中项
+            if is_checked and (not current_label or shape.label == current_label):
+                # 移动形状的所有点
+                for point in shape.points:
+                    point.setX(point.x() + dx)
+                    point.setY(point.y() + dy)
+                moved = True
+        
+        if moved:
+            # 更新画布
+            self.canvas.update()
+            # 标记为未保存状态
+            self.set_dirty()
 
 def inverted(color):
     return QColor(*[255 - v for v in color.getRgb()])
