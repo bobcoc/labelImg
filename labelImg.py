@@ -385,26 +385,31 @@ class MainWindow(QMainWindow, WindowMixin):
         self.draw_squares_option.setChecked(settings.get(SETTING_DRAW_SQUARE, False))
         self.draw_squares_option.triggered.connect(self.toggle_draw_square)
 
-        # Store actions for further handling.
+        # 添加隐藏选中标注的动作
+        hide_selected = action(get_str('hideSelected'), self.hide_selected_shape,
+                             'Ctrl+Shift+H', 'hide', get_str('hideSelectedDetail'),
+                             enabled=True)
+        
+        # 将动作添加到actions结构中
         self.actions = Struct(save=save, save_format=save_format, saveAs=save_as, open=open, close=close, resetAll=reset_all, deleteImg=delete_image,
-                              lineColor=color1, create=create, delete=delete, deleteVisible=delete_visible, edit=edit, copy=copy,
-                              createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
-                              shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
-                              zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
-                              fitWindow=fit_window, fitWidth=fit_width,
-                              zoomActions=zoom_actions,
-                              lightBrighten=light_brighten, lightDarken=light_darken, lightOrg=light_org,
-                              lightActions=light_actions,
-                              fileMenuActions=(
-                                  open, open_dir, save, save_as, close, reset_all, quit),
-                              beginner=(), advanced=(),
-                              editMenu=(edit, copy, delete, delete_visible, color1, self.draw_squares_option),
-                              beginnerContext=(create, edit, copy, delete),
-                              advancedContext=(create_mode, edit_mode, edit, copy,
-                                               delete, shape_line_color, shape_fill_color),
-                              onLoadActive=(
-                                  close, create, create_mode, edit_mode),
-                              onShapesPresent=(save_as, hide_all, show_all))
+                          lineColor=color1, create=create, delete=delete, deleteVisible=delete_visible, edit=edit, copy=copy,
+                          createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
+                          shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
+                          zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
+                          fitWindow=fit_window, fitWidth=fit_width,
+                          zoomActions=zoom_actions,
+                          lightBrighten=light_brighten, lightDarken=light_darken, lightOrg=light_org,
+                          lightActions=light_actions,
+                          fileMenuActions=(
+                              open, open_dir, save, save_as, close, reset_all, quit),
+                          beginner=(), advanced=(),
+                          editMenu=(edit, copy, delete, delete_visible, hide_selected, color1, self.draw_squares_option),  # 添加hide_selected
+                          beginnerContext=(create, edit, copy, delete),
+                          advancedContext=(create_mode, edit_mode, edit, copy,
+                                           delete, shape_line_color, shape_fill_color),
+                          onLoadActive=(
+                              close, create, create_mode, edit_mode),
+                          onShapesPresent=(save_as, hide_all, show_all))
 
         self.menus = Struct(
             file=self.menu(get_str('menu_file')),
@@ -1830,6 +1835,17 @@ class MainWindow(QMainWindow, WindowMixin):
             self.canvas.update()
             # 标记为未保存状态
             self.set_dirty()
+
+    def hide_selected_shape(self):
+        """隐藏当前选中的标注"""
+        if not self.canvas.selected_shape:
+            QMessageBox.information(self, '提示', '请先选择一个标注')
+            return
+        
+        shape = self.canvas.selected_shape
+        shape.fill = False
+        self.canvas.update()
+        self.set_dirty()
 
 def inverted(color):
     return QColor(*[255 - v for v in color.getRgb()])
