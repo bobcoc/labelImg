@@ -801,13 +801,31 @@ class MainWindow(QMainWindow, WindowMixin):
     def edit_label(self):
         if not self.canvas.editing():
             return
-        item = self.current_item()
-        if not item:
+            
+        # 获取当前选中的shapes
+        selected_shapes = []
+        if self.canvas.selected_shapes:  # 多选情况
+            selected_shapes = self.canvas.selected_shapes
+        elif self.canvas.selected_shape:  # 单选情况
+            selected_shapes = [self.canvas.selected_shape]
+            
+        if not selected_shapes:
             return
-        text = self.label_dialog.pop_up(item.text())
+            
+        # 使用第一个shape的标签作为默认值
+        text = self.label_dialog.pop_up(selected_shapes[0].label)
         if text is not None:
-            item.setText(text)
-            item.setBackground(generate_color_by_text(text))
+            # 更新所有选中shapes的标签
+            for shape in selected_shapes:
+                # 更新shape的标签
+                shape.label = text
+                # 更新对应的列表项
+                item = self.shapes_to_items.get(shape)
+                if item:
+                    item.setText(text)
+                    item.setBackground(generate_color_by_text(text))
+                # 更新shape的颜色
+                shape.line_color = generate_color_by_text(text)
             self.set_dirty()
 
     # Tzutalin 20160906 : Add file list and dock to move faster
