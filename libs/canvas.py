@@ -610,6 +610,95 @@ class Canvas(QWidget):
             self.update()
             return
 
+        # 在关闭形状之前进行自动收缩
+        if self.pixmap:
+            # 获取当前矩形的边界
+            rect = self.current.bounding_rect()
+            x1, y1, x2, y2 = int(rect.x()), int(rect.y()), int(rect.x() + rect.width()), int(rect.y() + rect.height())
+            
+            # 确保边界在图片范围内
+            x1 = max(0, x1)
+            y1 = max(0, y1)
+            x2 = min(self.pixmap.width(), x2)
+            y2 = min(self.pixmap.height(), y2)
+            
+            # 将QPixmap转换为QImage以进行像素分析
+            image = self.pixmap.toImage()
+            
+            def is_content_pixel(x, y):
+                # 获取像素颜色
+                color = QColor(image.pixel(x, y))
+                # 计算灰度值
+                gray_value = (color.red() + color.green() + color.blue()) / 3
+                # 使用更严格的阈值
+                return gray_value < 220
+            
+            # 定义边距
+            MARGIN = 1  # 边距像素
+            
+            # 左边界 - 从左向右扫描
+            for x in range(x1, x2):
+                has_content = False
+                for y in range(y1, y2):
+                    if is_content_pixel(x, y):
+                        x1 = max(x - MARGIN, 0)
+                        has_content = True
+                        break
+                if has_content:
+                    break
+            
+            # 右边界 - 从右向左扫描
+            for x in range(x2 - 1, x1, -1):
+                has_content = False
+                for y in range(y1, y2):
+                    if is_content_pixel(x, y):
+                        x2 = min(x + MARGIN, self.pixmap.width())
+                        has_content = True
+                        break
+                if has_content:
+                    break
+            
+            # 上边界 - 从上向下扫描
+            for y in range(y1, y2):
+                has_content = False
+                for x in range(x1, x2):
+                    if is_content_pixel(x, y):
+                        y1 = max(y - MARGIN, 0)
+                        has_content = True
+                        break
+                if has_content:
+                    break
+            
+            # 下边界 - 从下向上扫描
+            for y in range(y2 - 1, y1, -1):
+                has_content = False
+                for x in range(x1, x2):
+                    if is_content_pixel(x, y):
+                        y2 = min(y + MARGIN, self.pixmap.height())
+                        has_content = True
+                        break
+                if has_content:
+                    break
+
+            # 确保最小尺寸
+            MIN_SIZE = 5  # 最小尺寸（像素）
+            if x2 - x1 < MIN_SIZE:
+                center = (x1 + x2) / 2
+                x1 = max(0, center - MIN_SIZE / 2)
+                x2 = min(self.pixmap.width(), center + MIN_SIZE / 2)
+            if y2 - y1 < MIN_SIZE:
+                center = (y1 + y2) / 2
+                y1 = max(0, center - MIN_SIZE / 2)
+                y2 = min(self.pixmap.height(), center + MIN_SIZE / 2)
+            
+            # 更新形状的点
+            self.current.points = [
+                QPointF(x1, y1),
+                QPointF(x2, y1),
+                QPointF(x2, y2),
+                QPointF(x1, y2)
+            ]
+
         self.current.close()
         self.shapes.append(self.current)
         self.current = None
