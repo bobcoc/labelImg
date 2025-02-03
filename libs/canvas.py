@@ -1,4 +1,3 @@
-
 try:
     from PyQt5.QtGui import *
     from PyQt5.QtCore import *
@@ -71,6 +70,12 @@ class Canvas(QWidget):
 
         self.preview_shapes = []  # 添加预览形状列表
 
+        # 添加多选相关的属性
+        self.selected_shapes = []  # 存储多个选中的shape
+        self.is_ctrl_pressed = False  # 控制键状态
+        self.selection_box = None  # 框选区域
+        self.selection_box_start = None  # 框选起始点
+
     def set_drawing_color(self, qcolor):
         self.drawing_line_color = qcolor
         self.drawing_rect_color = qcolor
@@ -111,7 +116,6 @@ class Canvas(QWidget):
         return self.h_vertex is not None
 
     def mouseMoveEvent(self, ev):
-        """Update line with last point and current coordinates."""
         pos = self.transform_pos(ev.pos())
 
         # Update coordinates in status bar if image is opened
@@ -119,6 +123,17 @@ class Canvas(QWidget):
         if window.file_path is not None:
             self.parent().window().label_coordinates.setText(
                 'X: %d; Y: %d' % (pos.x(), pos.y()))
+
+        # 如果是框选模式
+        if ev.buttons() & Qt.LeftButton and self.is_ctrl_pressed:
+            # 更新框选区域
+            if self.selection_box_start:
+                self.selection_box = QRectF(
+                    self.selection_box_start,
+                    pos
+                ).normalized()
+                self.update()
+                return
 
         # Polygon drawing.
         if self.drawing():
@@ -183,27 +198,15 @@ class Canvas(QWidget):
                 self.bounded_move_vertex(pos)
                 self.shapeMoved.emit()
                 self.repaint()
-
-                # Display annotation width and height while moving vertex
-                point1 = self.h_shape[1]
-                point3 = self.h_shape[3]
-                current_width = abs(point1.x() - point3.x())
-                current_height = abs(point1.y() - point3.y())
-                self.parent().window().label_coordinates.setText(
-                        'Width: %d, Height: %d / X: %d; Y: %d' % (current_width, current_height, pos.x(), pos.y()))
             elif self.selected_shape and self.prev_point:
-                self.override_cursor(CURSOR_MOVE)
-                self.bounded_move_shape(self.selected_shape, pos)
+                # 移动所有选中的shapes
+                if self.selected_shapes:
+                    for shape in self.selected_shapes:
+                        self.bounded_move_shape(shape, pos)
+                else:
+                    self.bounded_move_shape(self.selected_shape, pos)
                 self.shapeMoved.emit()
                 self.repaint()
-
-                # Display annotation width and height while moving shape
-                point1 = self.selected_shape[1]
-                point3 = self.selected_shape[3]
-                current_width = abs(point1.x() - point3.x())
-                current_height = abs(point1.y() - point3.y())
-                self.parent().window().label_coordinates.setText(
-                        'Width: %d, Height: %d / X: %d; Y: %d' % (current_width, current_height, pos.x(), pos.y()))
             else:
                 # pan
                 delta = ev.pos() - self.pan_initial_pos
@@ -217,8 +220,7 @@ class Canvas(QWidget):
         # - Highlight vertex
         # Update shape/vertex fill and tooltip value accordingly.
         self.setToolTip("Image")
-        priority_list = self.shapes + ([self.selected_shape] if self.selected_shape else [])
-        for shape in reversed([s for s in priority_list if self.isVisible(s)]):
+        for shape in reversed([s for s in self.shapes if self.isVisible(s)]):
             # Look for a nearby vertex to highlight. If that fails,
             # check if we happen to be inside a shape.
             index = shape.nearest_vertex(pos, self.epsilon)
@@ -241,16 +243,8 @@ class Canvas(QWidget):
                 self.setStatusTip(self.toolTip())
                 self.override_cursor(CURSOR_GRAB)
                 self.update()
-
-                # Display annotation width and height while hovering inside
-                point1 = self.h_shape[1]
-                point3 = self.h_shape[3]
-                current_width = abs(point1.x() - point3.x())
-                current_height = abs(point1.y() - point3.y())
-                self.parent().window().label_coordinates.setText(
-                        'Width: %d, Height: %d / X: %d; Y: %d' % (current_width, current_height, pos.x(), pos.y()))
                 break
-        else:  # Nothing found, clear highlights, reset state.
+        else:
             if self.h_shape:
                 self.h_shape.highlight_clear()
                 self.update()
@@ -261,16 +255,22 @@ class Canvas(QWidget):
         pos = self.transform_pos(ev.pos())
 
         if ev.button() == Qt.LeftButton:
-            if self.drawing():
-                self.handle_drawing(pos)
+            if self.is_ctrl_pressed:
+                # 开始框选
+                self.selection_box_start = pos
+                self.selection_box = QRectF(pos, pos)
+                self.update()
             else:
-                selection = self.select_shape_point(pos)
-                self.prev_point = pos
+                if self.drawing():
+                    self.handle_drawing(pos)
+                else:
+                    selection = self.select_shape_point(pos)
+                    self.prev_point = pos
 
-                if selection is None:
-                    # pan
-                    QApplication.setOverrideCursor(QCursor(Qt.OpenHandCursor))
-                    self.pan_initial_pos = ev.pos()
+                    if selection is None:
+                        # pan
+                        QApplication.setOverrideCursor(QCursor(Qt.OpenHandCursor))
+                        self.pan_initial_pos = ev.pos()
 
         elif ev.button() == Qt.RightButton and self.editing():
             self.select_shape_point(pos)
@@ -286,18 +286,37 @@ class Canvas(QWidget):
                 # Cancel the move by deleting the shadow copy.
                 self.selected_shape_copy = None
                 self.repaint()
-        elif ev.button() == Qt.LeftButton and self.selected_shape:
+        elif ev.button() == Qt.LeftButton and self.is_ctrl_pressed:
+            # 完成框选,选中框内的shapes
+            if self.selection_box:
+                # 清除之前的选择
+                for shape in self.selected_shapes:
+                    shape.selected = False
+                self.selected_shapes.clear()
+                
+                # 选中框内的shapes
+                for shape in self.shapes:
+                    if self.is_shape_in_box(shape, self.selection_box):
+                        self.selected_shapes.append(shape)
+                        shape.selected = True
+                        # 如果是第一个选中的shape，设置为主选中shape
+                        if not self.selected_shape:
+                            self.selected_shape = shape
+                
+                # 清除选择框
+                self.selection_box = None
+                self.selection_box_start = None
+                self.update()
+                # 发送选择改变信号
+                self.selectionChanged.emit(bool(self.selected_shapes))
+                return
+        elif ev.button() == Qt.LeftButton:
             if self.selected_vertex():
                 self.override_cursor(CURSOR_POINT)
             else:
                 self.override_cursor(CURSOR_GRAB)
-        elif ev.button() == Qt.LeftButton:
-            pos = self.transform_pos(ev.pos())
-            if self.drawing():
-                self.handle_drawing(pos)
-            else:
-                # pan
-                QApplication.restoreOverrideCursor()
+            # pan
+            QApplication.restoreOverrideCursor()
 
     def end_move(self, copy=False):
         assert self.selected_shape and self.selected_shape_copy
@@ -355,8 +374,13 @@ class Canvas(QWidget):
             self.finalise()
 
     def select_shape(self, shape):
-        self.de_select_shape()
+        """选中单个shape"""
+        if not self.is_ctrl_pressed:
+            # 如果没有按住Ctrl，清除之前的选择
+            self.de_select_shape()
         shape.selected = True
+        if shape not in self.selected_shapes:
+            self.selected_shapes.append(shape)
         self.selected_shape = shape
         self.set_hiding()
         self.selectionChanged.emit(True)
@@ -445,11 +469,6 @@ class Canvas(QWidget):
         if self.out_of_pixmap(o2):
             pos += QPointF(min(0, self.pixmap.width() - o2.x()),
                            min(0, self.pixmap.height() - o2.y()))
-        # The next line tracks the new position of the cursor
-        # relative to the shape, but also results in making it
-        # a bit "shaky" when nearing the border and allows it to
-        # go outside of the shape's area for some reason. XXX
-        # self.calculateOffsets(self.selectedShape, pos)
         dp = pos - self.prev_point
         if dp:
             shape.move_by(dp)
@@ -458,21 +477,36 @@ class Canvas(QWidget):
         return False
 
     def de_select_shape(self):
+        """取消所有选中状态"""
         if self.selected_shape:
             self.selected_shape.selected = False
             self.selected_shape = None
-            self.set_hiding(False)
-            self.selectionChanged.emit(False)
-            self.update()
+        for shape in self.selected_shapes:
+            shape.selected = False
+        self.selected_shapes.clear()
+        self.set_hiding(False)
+        self.selectionChanged.emit(False)
+        self.update()
 
     def delete_selected(self):
-        if self.selected_shape:
-            shape = self.selected_shape
-            self.un_highlight(shape)
-            self.shapes.remove(self.selected_shape)
+        """删除所有选中的shapes"""
+        deleted = []
+        if self.selected_shapes:
+            for shape in self.selected_shapes:
+                if shape in self.shapes:
+                    self.shapes.remove(shape)
+                    deleted.append(shape)
+            self.selected_shapes.clear()
             self.selected_shape = None
             self.update()
-            return shape
+        elif self.selected_shape:
+            shape = self.selected_shape
+            if shape in self.shapes:
+                self.shapes.remove(shape)
+                self.selected_shape = None
+                deleted.append(shape)
+                self.update()
+        return deleted[0] if len(deleted) == 1 else deleted  # 如果只删除一个，返回单个shape，否则返回列表
 
     def copy_selected_shape(self):
         if self.selected_shape:
@@ -518,45 +552,32 @@ class Canvas(QWidget):
         p.drawPixmap(0, 0, temp)
         Shape.scale = self.scale
         Shape.label_font_size = self.label_font_size
+
+        # 先绘制所有未选中的shapes
         for shape in self.shapes:
             if (shape.selected or not self._hide_background) and self.isVisible(shape):
-                shape.fill = shape.selected or shape == self.h_shape
+                if shape not in self.selected_shapes:  # 只绘制未选中的
+                    shape.fill = shape.selected or shape == self.h_shape
+                    shape.paint(p)
+
+        # 再绘制选中的shapes，确保它们在最上层
+        for shape in self.selected_shapes:
+            if self.isVisible(shape):
+                shape.fill = True  # 选中的shape填充显示
                 shape.paint(p)
+
+        # 绘制当前正在创建的shape
         if self.current:
             self.current.paint(p)
             self.line.paint(p)
         if self.selected_shape_copy:
             self.selected_shape_copy.paint(p)
 
-        # Paint rect
-        if self.current is not None and len(self.line) == 2:
-            left_top = self.line[0]
-            right_bottom = self.line[1]
-            rect_width = right_bottom.x() - left_top.x()
-            rect_height = right_bottom.y() - left_top.y()
-            p.setPen(self.drawing_rect_color)
-            brush = QBrush(Qt.BDiagPattern)
-            p.setBrush(brush)
-            p.drawRect(int(left_top.x()), int(left_top.y()), int(rect_width), int(rect_height))
-
-        if self.drawing() and not self.prev_point.isNull() and not self.out_of_pixmap(self.prev_point):
-            p.setPen(QColor(0, 0, 0))
-            p.drawLine(int(self.prev_point.x()), 0, int(self.prev_point.x()), int(self.pixmap.height()))
-            p.drawLine(0, int(self.prev_point.y()), int(self.pixmap.width()), int(self.prev_point.y()))
-
-        self.setAutoFillBackground(True)
-        if self.verified:
-            pal = self.palette()
-            pal.setColor(self.backgroundRole(), QColor(184, 239, 38, 128))
-            self.setPalette(pal)
-        else:
-            pal = self.palette()
-            pal.setColor(self.backgroundRole(), QColor(232, 232, 232, 255))
-            self.setPalette(pal)
-
-        # 在绘制完常规形状后绘制预览形状
-        for shape in self.preview_shapes:
-            shape.paint(p)
+        # 绘制选择框
+        if self.selection_box:
+            p.setPen(QPen(QColor(0, 120, 255), 1, Qt.SolidLine))
+            p.setBrush(QColor(0, 120, 255, 30))
+            p.drawRect(self.selection_box)
 
         p.end()
 
@@ -649,6 +670,12 @@ class Canvas(QWidget):
             self.move_one_pixel('Up')
         elif key == Qt.Key_Down and self.selected_shape:
             self.move_one_pixel('Down')
+        elif ev.key() == Qt.Key_Control:
+            self.is_ctrl_pressed = True
+
+    def keyReleaseEvent(self, ev):
+        if ev.key() == Qt.Key_Control:
+            self.is_ctrl_pressed = False
 
     def move_one_pixel(self, direction):
         # print(self.selectedShape.points)
@@ -752,3 +779,19 @@ class Canvas(QWidget):
 
     def set_drawing_shape_to_square(self, status):
         self.draw_square = status
+
+    def is_shape_in_box(self, shape, box):
+        """判断shape是否在选择框内"""
+        # 转换为画布坐标系下的矩形
+        box_rect = box.normalized()
+        # 检查shape的所有点是否在选择框内
+        return any(box_rect.contains(point) for point in shape.points)
+
+    def move_selected_shapes(self, dx, dy):
+        """移动所有选中的shapes"""
+        if self.selected_shapes:
+            for shape in self.selected_shapes:
+                for point in shape.points:
+                    point.setX(point.x() + dx)
+                    point.setY(point.y() + dy)
+            self.update()

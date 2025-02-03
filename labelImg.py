@@ -1661,7 +1661,15 @@ class MainWindow(QMainWindow, WindowMixin):
             self.set_dirty()
 
     def delete_selected_shape(self):
-        self.remove_label(self.canvas.delete_selected())
+        deleted = self.canvas.delete_selected()
+        if deleted:
+            # 如果是单个shape
+            if not isinstance(deleted, list):
+                self.remove_label(deleted)
+            # 如果是多个shape
+            else:
+                for shape in deleted:
+                    self.remove_label(shape)
         self.set_dirty()
         if self.no_shapes():
             for action in self.actions.onShapesPresent:
