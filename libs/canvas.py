@@ -579,6 +579,10 @@ class Canvas(QWidget):
             p.setBrush(QColor(0, 120, 255, 30))
             p.drawRect(self.selection_box)
 
+        # 绘制预览形状
+        for shape in self.preview_shapes:
+            shape.paint(p)
+
         p.end()
 
     def transform_pos(self, point):

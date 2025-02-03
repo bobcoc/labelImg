@@ -388,7 +388,7 @@ class MainWindow(QMainWindow, WindowMixin):
         hide_selected = action(get_str('hideSelected'), self.hide_selected_shape,
                              'Ctrl+Shift+H', 'hide', get_str('hideSelectedDetail'),
                              enabled=True)
-
+        
         # 创建批量创建动作 - 移除enabled=False
         create_batch = action(get_str('createBatch'), self.create_batch_shapes,
                          'Ctrl+B', 'batch', get_str('createBatchDetail'))
@@ -403,11 +403,12 @@ class MainWindow(QMainWindow, WindowMixin):
                       zoomActions=zoom_actions,
                       lightBrighten=light_brighten, lightDarken=light_darken, lightOrg=light_org,
                       lightActions=light_actions,
-                      createBatch=create_batch,  # 添加到actions结构
+                      createBatch=create_batch,  # 批量创建动作
+                      hideSelected=hide_selected,  # 添加隐藏选中动作
                       fileMenuActions=(
                           open, open_dir, save, save_as, close, reset_all, quit),
                       beginner=(), advanced=(),
-                      editMenu=(edit, copy, delete, delete_visible, None, create_batch),  # 添加到编辑菜单
+                      editMenu=(edit, copy, delete, delete_visible, None, create_batch, hide_selected),  # 添加到编辑菜单
                       beginnerContext=(create, edit, copy, delete),
                       advancedContext=(create_mode, edit_mode, edit, copy,
                                        delete, shape_line_color, shape_fill_color),
@@ -1860,16 +1861,22 @@ class MainWindow(QMainWindow, WindowMixin):
 
     def hide_selected_shape(self):
         """隐藏当前选中的标注"""
-        if not self.canvas.selected_shape:
+        # 检查是否有选中的shapes
+        if not self.canvas.selected_shapes and not self.canvas.selected_shape:
             QMessageBox.information(self, '提示', '请先选择一个标注')
             return
-            
-        shape = self.canvas.selected_shape
-        # 找到对应的列表项
-        item = self.shapes_to_items.get(shape)
-        if item:
-            # 设置复选框状态为未选中
-            item.setCheckState(Qt.Unchecked)
+        
+        # 处理多选情况
+        if self.canvas.selected_shapes:
+            for shape in self.canvas.selected_shapes:
+                item = self.shapes_to_items.get(shape)
+                if item:
+                    item.setCheckState(Qt.Unchecked)
+        # 处理单选情况
+        elif self.canvas.selected_shape:
+            item = self.shapes_to_items.get(self.canvas.selected_shape)
+            if item:
+                item.setCheckState(Qt.Unchecked)
         
         # 更新画布
         self.canvas.update()
