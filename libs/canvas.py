@@ -678,37 +678,43 @@ class Canvas(QWidget):
             self.is_ctrl_pressed = False
 
     def move_one_pixel(self, direction):
-        # print(self.selectedShape.points)
+        """移动选中的shape(s)一个像素"""
+        # 获取要移动的shapes列表
+        shapes_to_move = self.selected_shapes if self.selected_shapes else [self.selected_shape] if self.selected_shape else []
+        
+        if not shapes_to_move:
+            return
+        
+        # 根据方向确定移动的偏移量
         if direction == 'Left' and not self.move_out_of_bound(QPointF(-1.0, 0)):
-            # print("move Left one pixel")
-            self.selected_shape.points[0] += QPointF(-1.0, 0)
-            self.selected_shape.points[1] += QPointF(-1.0, 0)
-            self.selected_shape.points[2] += QPointF(-1.0, 0)
-            self.selected_shape.points[3] += QPointF(-1.0, 0)
+            offset = QPointF(-1.0, 0)
         elif direction == 'Right' and not self.move_out_of_bound(QPointF(1.0, 0)):
-            # print("move Right one pixel")
-            self.selected_shape.points[0] += QPointF(1.0, 0)
-            self.selected_shape.points[1] += QPointF(1.0, 0)
-            self.selected_shape.points[2] += QPointF(1.0, 0)
-            self.selected_shape.points[3] += QPointF(1.0, 0)
+            offset = QPointF(1.0, 0)
         elif direction == 'Up' and not self.move_out_of_bound(QPointF(0, -1.0)):
-            # print("move Up one pixel")
-            self.selected_shape.points[0] += QPointF(0, -1.0)
-            self.selected_shape.points[1] += QPointF(0, -1.0)
-            self.selected_shape.points[2] += QPointF(0, -1.0)
-            self.selected_shape.points[3] += QPointF(0, -1.0)
+            offset = QPointF(0, -1.0)
         elif direction == 'Down' and not self.move_out_of_bound(QPointF(0, 1.0)):
-            # print("move Down one pixel")
-            self.selected_shape.points[0] += QPointF(0, 1.0)
-            self.selected_shape.points[1] += QPointF(0, 1.0)
-            self.selected_shape.points[2] += QPointF(0, 1.0)
-            self.selected_shape.points[3] += QPointF(0, 1.0)
+            offset = QPointF(0, 1.0)
+        else:
+            return
+        
+        # 移动所有选中的shapes
+        for shape in shapes_to_move:
+            for point in shape.points:
+                point += offset
+                
         self.shapeMoved.emit()
         self.repaint()
 
     def move_out_of_bound(self, step):
-        points = [p1 + p2 for p1, p2 in zip(self.selected_shape.points, [step] * 4)]
-        return True in map(self.out_of_pixmap, points)
+        """检查移动是否会超出边界"""
+        # 检查所有选中的shapes
+        shapes_to_check = self.selected_shapes if self.selected_shapes else [self.selected_shape] if self.selected_shape else []
+        
+        for shape in shapes_to_check:
+            points = [p1 + step for p1 in shape.points]
+            if True in map(self.out_of_pixmap, points):
+                return True
+        return False
 
     def set_last_label(self, text, line_color=None, fill_color=None):
         assert text
