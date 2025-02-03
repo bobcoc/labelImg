@@ -47,6 +47,7 @@ from libs.create_ml_io import CreateMLReader
 from libs.create_ml_io import JSON_EXT
 from libs.ustr import ustr
 from libs.hashableQListWidgetItem import HashableQListWidgetItem
+from libs.batchDialog import BatchDialog
 
 __appname__ = 'labelImg'
 
@@ -162,8 +163,6 @@ class MainWindow(QMainWindow, WindowMixin):
         # Connect to itemChanged to detect checkbox changes.
         self.label_list.itemChanged.connect(self.label_item_changed)
         list_layout.addWidget(self.label_list)
-
-
 
         self.dock = QDockWidget(get_str('boxLabelText'), self)
         self.dock.setObjectName(get_str('labels'))
@@ -389,28 +388,40 @@ class MainWindow(QMainWindow, WindowMixin):
         hide_selected = action(get_str('hideSelected'), self.hide_selected_shape,
                              'Ctrl+Shift+H', 'hide', get_str('hideSelectedDetail'),
                              enabled=True)
+
+        # 创建批量创建动作 - 移除enabled=False
+        create_batch = action(get_str('createBatch'), self.create_batch_shapes,
+                         'Ctrl+B', 'batch', get_str('createBatchDetail'))
         
         # 将动作添加到actions结构中
         self.actions = Struct(save=save, save_format=save_format, saveAs=save_as, open=open, close=close, resetAll=reset_all, deleteImg=delete_image,
-                          lineColor=color1, create=create, delete=delete, deleteVisible=delete_visible, edit=edit, copy=copy,
-                          createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
-                          shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
-                          zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
-                          fitWindow=fit_window, fitWidth=fit_width,
-                          zoomActions=zoom_actions,
-                          lightBrighten=light_brighten, lightDarken=light_darken, lightOrg=light_org,
-                          lightActions=light_actions,
-                          fileMenuActions=(
-                              open, open_dir, save, save_as, close, reset_all, quit),
-                          beginner=(), advanced=(),
-                          editMenu=(edit, copy, delete, delete_visible, hide_selected, color1, self.draw_squares_option),  # 添加hide_selected
-                          beginnerContext=(create, edit, copy, delete),
-                          advancedContext=(create_mode, edit_mode, edit, copy,
-                                           delete, shape_line_color, shape_fill_color),
-                          onLoadActive=(
-                              close, create, create_mode, edit_mode),
-                          onShapesPresent=(save_as, hide_all, show_all))
+                      lineColor=color1, create=create, delete=delete, deleteVisible=delete_visible, edit=edit, copy=copy,
+                      createMode=create_mode, editMode=edit_mode, advancedMode=advanced_mode,
+                      shapeLineColor=shape_line_color, shapeFillColor=shape_fill_color,
+                      zoom=zoom, zoomIn=zoom_in, zoomOut=zoom_out, zoomOrg=zoom_org,
+                      fitWindow=fit_window, fitWidth=fit_width,
+                      zoomActions=zoom_actions,
+                      lightBrighten=light_brighten, lightDarken=light_darken, lightOrg=light_org,
+                      lightActions=light_actions,
+                      createBatch=create_batch,  # 添加到actions结构
+                      fileMenuActions=(
+                          open, open_dir, save, save_as, close, reset_all, quit),
+                      beginner=(), advanced=(),
+                      editMenu=(edit, copy, delete, delete_visible, None, create_batch),  # 添加到编辑菜单
+                      beginnerContext=(create, edit, copy, delete),
+                      advancedContext=(create_mode, edit_mode, edit, copy,
+                                       delete, shape_line_color, shape_fill_color),
+                      onLoadActive=(
+                          close, create, create_mode, edit_mode),
+                      onShapesPresent=(save_as, hide_all, show_all))
 
+        # 创建工具栏
+        self.tools = self.toolbar('Tools')
+        
+        # 将批量创建动作添加到工具栏
+        self.tools.addAction(create_batch)
+        
+        # 创建菜单
         self.menus = Struct(
             file=self.menu(get_str('menu_file')),
             edit=self.menu(get_str('menu_edit')),
@@ -418,6 +429,9 @@ class MainWindow(QMainWindow, WindowMixin):
             help=self.menu(get_str('menu_help')),
             recentFiles=QMenu(get_str('menu_openRecent')),
             labelList=label_menu)
+        
+        # 将批量创建动作添加到编辑菜单
+        add_actions(self.menus.edit, (edit, copy, delete, delete_visible, None, create_batch))
 
         # Auto saving : Enable auto saving if pressing next
         self.auto_saving = QAction(get_str('autoSaveMode'), self)
@@ -1851,6 +1865,92 @@ class MainWindow(QMainWindow, WindowMixin):
         
         # 更新画布
         self.canvas.update()
+
+    def create_batch_shapes(self):
+        """批量创建标注框"""
+        # 从预定义的类别文件中获取标签列表
+        if self.label_hist is None:
+            self.label_hist = []
+            
+        # 获取当前所有已定义的标签
+        labels = self.label_hist
+        if not labels:  # 如果没有预定义标签，则从当前标签列表获取
+            labels = [str(self.label_list.item(i).text()) 
+                     for i in range(self.label_list.count())]
+        
+        # 如果仍然没有标签，使用默认标签
+        if not labels:
+            labels = ['default']
+        
+        print(f"Available labels: {labels}")  # 调试输出
+        
+        # 获取画布大小
+        canvas_size = (self.canvas.pixmap.width(), self.canvas.pixmap.height())
+        
+        # 创建对话框并传递标签列表
+        dialog = BatchDialog(self, labels, canvas_size)
+        dialog.paramsChanged.connect(self.preview_batch_shapes)
+        
+        if dialog.exec_():
+            self.create_batch_shapes_with_params(dialog.get_params())
+            self.canvas.preview_shapes = []
+            self.canvas.update()
+
+    def preview_batch_shapes(self, params):
+        """预览批量创建的标注框"""
+        preview_shapes = []
+        
+        # 使用参数创建预览形状
+        for row in range(params['rows']):
+            for col in range(params['cols']):
+                # 计算当前框的位置
+                x = params['start_x'] + col * (params['width'] + params['h_spacing'])
+                y = params['start_y'] + row * (params['height'] + params['v_spacing'])
+                
+                # 创建预览Shape
+                shape = Shape(label=params['label'])
+                shape.add_point(QPointF(x, y))
+                shape.add_point(QPointF(x + params['width'], y))
+                shape.add_point(QPointF(x + params['width'], y + params['height']))
+                shape.add_point(QPointF(x, y + params['height']))
+                shape.close()
+                
+                # 设置预览样式
+                shape.line_color = QColor(128, 128, 128, 128)  # 半透明灰色
+                shape.fill_color = QColor(128, 128, 128, 64)   # 更透明的灰色
+                
+                preview_shapes.append(shape)
+        
+        # 更新画布的预览
+        self.canvas.preview_shapes = preview_shapes
+        self.canvas.update()
+
+    def create_batch_shapes_with_params(self, params):
+        """使用给定参数创建批量标注框"""
+        for row in range(params['rows']):
+            for col in range(params['cols']):
+                # 计算当前框的位置
+                x = params['start_x'] + col * (params['width'] + params['h_spacing'])
+                y = params['start_y'] + row * (params['height'] + params['v_spacing'])
+                
+                # 创建新的Shape对象
+                shape = Shape(label=params['label'])
+                shape.add_point(QPointF(x, y))
+                shape.add_point(QPointF(x + params['width'], y))
+                shape.add_point(QPointF(x + params['width'], y + params['height']))
+                shape.add_point(QPointF(x, y + params['height']))
+                shape.close()
+                
+                # 设置颜色
+                shape.line_color = generate_color_by_text(params['label'])
+                shape.fill_color = generate_color_by_text(params['label'])
+                
+                # 添加到画布和标签列表
+                self.add_label(shape)
+                self.canvas.shapes.append(shape)
+        
+        self.canvas.update()
+        self.set_dirty()
 
 def inverted(color):
     return QColor(*[255 - v for v in color.getRgb()])

@@ -69,6 +69,8 @@ class Canvas(QWidget):
         # initialisation for panning
         self.pan_initial_pos = QPoint()
 
+        self.preview_shapes = []  # 添加预览形状列表
+
     def set_drawing_color(self, qcolor):
         self.drawing_line_color = qcolor
         self.drawing_rect_color = qcolor
@@ -551,6 +553,10 @@ class Canvas(QWidget):
             pal = self.palette()
             pal.setColor(self.backgroundRole(), QColor(232, 232, 232, 255))
             self.setPalette(pal)
+
+        # 在绘制完常规形状后绘制预览形状
+        for shape in self.preview_shapes:
+            shape.paint(p)
 
         p.end()
 
