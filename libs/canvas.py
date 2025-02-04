@@ -10,7 +10,7 @@ except ImportError:
 
 from libs.shape import Shape
 from libs.utils import distance
-
+from PyQt5.QtCore import pyqtSignal
 CURSOR_DEFAULT = Qt.ArrowCursor
 CURSOR_POINT = Qt.PointingHandCursor
 CURSOR_DRAW = Qt.CrossCursor
@@ -28,6 +28,7 @@ class Canvas(QWidget):
     selectionChanged = pyqtSignal(bool)
     shapeMoved = pyqtSignal()
     drawingPolygon = pyqtSignal(bool)
+    shape_selection_changed = pyqtSignal(bool)
 
     CREATE, EDIT = list(range(2))
 
@@ -102,7 +103,7 @@ class Canvas(QWidget):
         self.mode = self.EDIT if value else self.CREATE
         if not value:  # Create
             self.un_highlight()
-            self.de_select_shape()
+            self.deselect_shape()
         self.prev_point = QPointF()
         self.repaint()
 
@@ -255,20 +256,39 @@ class Canvas(QWidget):
         pos = self.transform_pos(ev.pos())
 
         if ev.button() == Qt.LeftButton:
-            if self.is_ctrl_pressed:
-                # 开始框选
-                self.selection_box_start = pos
-                self.selection_box = QRectF(pos, pos)
-                self.update()
+            if self.drawing():
+                self.handle_drawing(pos)
             else:
-                if self.drawing():
-                    self.handle_drawing(pos)
-                else:
-                    selection = self.select_shape_point(pos)
-                    self.prev_point = pos
+                # 传入是否是多选模式的标志
+                multiple_selection_mode = bool(ev.modifiers() & Qt.ControlModifier)
+                selection = self.select_shape_point(pos, multiple_selection_mode)
+                self.prev_point = pos
 
-                    if selection is None:
-                        # pan
+                if selection is not None:
+                    if ev.modifiers() == Qt.ControlModifier:
+                        # Ctrl+单击时的多选逻辑
+                        if isinstance(selection, Shape):  # 如果返回的是shape对象
+                            if selection in self.selected_shapes:
+                                # 如果shape已被选中，从选中列表中移除
+                                self.selected_shapes.remove(selection)
+                                selection.selected = False
+                                if selection == self.selected_shape:
+                                    self.selected_shape = None
+                                # 发送选择改变信号
+                                self.selectionChanged.emit(bool(self.selected_shapes))
+                                self.shape_selection_changed.emit(bool(self.selected_shapes))
+                    else:
+                        # 普通单击，已经在select_shape_point中处理了选择
+                        self.calculate_offsets(self.selected_shape, pos)
+                else:
+                    # 点击空白区域
+                    if ev.modifiers() == Qt.ControlModifier:
+                        # Ctrl+空白区域开始框选
+                        self.selection_box_start = pos
+                        self.selection_box = QRectF(pos, pos)
+                    else:
+                        # 普通点击空白区域，取消所有选择并准备平移
+                        self.deselect_shape()
                         QApplication.setOverrideCursor(QCursor(Qt.OpenHandCursor))
                         self.pan_initial_pos = ev.pos()
 
@@ -377,28 +397,32 @@ class Canvas(QWidget):
         """选中单个shape"""
         if not self.is_ctrl_pressed:
             # 如果没有按住Ctrl，清除之前的选择
-            self.de_select_shape()
+            self.deselect_shape()
         shape.selected = True
         if shape not in self.selected_shapes:
             self.selected_shapes.append(shape)
         self.selected_shape = shape
-        self.set_hiding()
-        self.selectionChanged.emit(True)
+        # 发送两个选择改变的信号
+        self.selectionChanged.emit(True)  # 原有的信号
+        self.shape_selection_changed.emit(True)  # 新增的信号
         self.update()
 
-    def select_shape_point(self, point):
+    def select_shape_point(self, point, multiple_selection_mode=False):
         """Select the first shape created which contains this point."""
-        self.de_select_shape()
+        if not multiple_selection_mode:
+            self.deselect_shape()
+        
         if self.selected_vertex():  # A vertex is marked for selection.
             index, shape = self.h_vertex, self.h_shape
             shape.highlight_vertex(index, shape.MOVE_VERTEX)
             self.select_shape(shape)
             return self.h_vertex
+        
         for shape in reversed(self.shapes):
             if self.isVisible(shape) and shape.contains_point(point):
                 self.select_shape(shape)
                 self.calculate_offsets(shape, point)
-                return self.selected_shape
+                return shape
         return None
 
     def calculate_offsets(self, shape, point):
@@ -476,7 +500,7 @@ class Canvas(QWidget):
             return True
         return False
 
-    def de_select_shape(self):
+    def deselect_shape(self):
         """取消所有选中状态"""
         if self.selected_shape:
             self.selected_shape.selected = False
@@ -484,8 +508,9 @@ class Canvas(QWidget):
         for shape in self.selected_shapes:
             shape.selected = False
         self.selected_shapes.clear()
-        self.set_hiding(False)
+        # 发送两个选择改变信号
         self.selectionChanged.emit(False)
+        self.shape_selection_changed.emit(False)
         self.update()
 
     def delete_selected(self):
@@ -511,7 +536,7 @@ class Canvas(QWidget):
     def copy_selected_shape(self):
         if self.selected_shape:
             shape = self.selected_shape.copy()
-            self.de_select_shape()
+            self.deselect_shape()
             self.shapes.append(shape)
             shape.selected = True
             self.selected_shape = shape
@@ -634,7 +659,7 @@ class Canvas(QWidget):
                 return gray_value < 220
             
             # 定义边距
-            MARGIN = 1  # 边距像素
+            MARGIN = 0  # 边距像素
             
             # 左边界 - 从左向右扫描
             for x in range(x1, x2):
@@ -868,7 +893,7 @@ class Canvas(QWidget):
         QApplication.restoreOverrideCursor()
 
     def reset_state(self):
-        self.de_select_shape()
+        self.deselect_shape()
         self.un_highlight()
         self.selected_shape_copy = None
 

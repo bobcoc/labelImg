@@ -801,31 +801,38 @@ class MainWindow(QMainWindow, WindowMixin):
     def edit_label(self):
         if not self.canvas.editing():
             return
-            
-        # 获取当前选中的shapes
+        
+    # 获取当前选中的shapes
         selected_shapes = []
         if self.canvas.selected_shapes:  # 多选情况
-            selected_shapes = self.canvas.selected_shapes
+            # 只收集可见的选中shapes
+            selected_shapes = [shape for shape in self.canvas.selected_shapes 
+                         if self.shapes_to_items.get(shape) and 
+                         self.shapes_to_items[shape].checkState() == Qt.Checked]
         elif self.canvas.selected_shape:  # 单选情况
-            selected_shapes = [self.canvas.selected_shape]
-            
+            # 检查单个shape是否可见
+            item = self.shapes_to_items.get(self.canvas.selected_shape)
+            if item and item.checkState() == Qt.Checked:
+                selected_shapes = [self.canvas.selected_shape]
+        
         if not selected_shapes:
             return
-            
+        
         # 使用第一个shape的标签作为默认值
         text = self.label_dialog.pop_up(selected_shapes[0].label)
         if text is not None:
-            # 更新所有选中shapes的标签
+            # 更新所有选中且可见的shapes的标签
             for shape in selected_shapes:
-                # 更新shape的标签
-                shape.label = text
-                # 更新对应的列表项
+                # 再次确认shape的可见性(以防在对话框打开期间状态发生改变)
                 item = self.shapes_to_items.get(shape)
-                if item:
+                if item and item.checkState() == Qt.Checked:
+                    # 更新shape的标签
+                    shape.label = text
+                    # 更新对应的列表项
                     item.setText(text)
                     item.setBackground(generate_color_by_text(text))
-                # 更新shape的颜色
-                shape.line_color = generate_color_by_text(text)
+                    # 更新shape的颜色
+                    shape.line_color = generate_color_by_text(text)
             self.set_dirty()
 
     # Tzutalin 20160906 : Add file list and dock to move faster
@@ -1878,7 +1885,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.set_dirty()
 
     def hide_selected_shape(self):
-        """隐藏当前选中的标注"""
+        """隐藏当前选中的标注并取消选中状态"""
         # 检查是否有选中的shapes
         if not self.canvas.selected_shapes and not self.canvas.selected_shape:
             QMessageBox.information(self, '提示', '请先选择一个标注')
@@ -1890,11 +1897,23 @@ class MainWindow(QMainWindow, WindowMixin):
                 item = self.shapes_to_items.get(shape)
                 if item:
                     item.setCheckState(Qt.Unchecked)
+                    # 取消选中状态
+                    shape.selected = False
+            # 清空选中列表
+            self.canvas.selected_shapes.clear()
+            
         # 处理单选情况
         elif self.canvas.selected_shape:
             item = self.shapes_to_items.get(self.canvas.selected_shape)
             if item:
                 item.setCheckState(Qt.Unchecked)
+                # 取消选中状态
+                self.canvas.selected_shape.selected = False
+            # 清空选中的shape
+            self.canvas.selected_shape = None
+        
+        # 更新标签列表的选中状态
+        self.label_list.clearSelection()
         
         # 更新画布
         self.canvas.update()
