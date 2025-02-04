@@ -77,7 +77,8 @@ class MainWindow(QMainWindow, WindowMixin):
     def __init__(self, default_filename=None, default_prefdef_class_file=None, default_save_dir=None):
         super(MainWindow, self).__init__()
         self.setWindowTitle(__appname__)
-
+        # 在这里初始化 prev_used_label，确保它在任何方法调用之前就存在
+        self.prev_used_label = None
         # Load setting in the main thread
         self.settings = Settings()
         self.settings.load()
@@ -588,6 +589,10 @@ class MainWindow(QMainWindow, WindowMixin):
         add_actions(self.menus.edit, (None, move_shapes_up, move_shapes_down,
                                      move_shapes_left, move_shapes_right))
 
+        self.last_label = None  # 添加这个变量来记住上一次的标签
+
+        self.prev_used_label = None  # 新增一个专门用于记住上次标签的变量
+
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
             self.canvas.set_drawing_shape_to_square(False)
@@ -769,6 +774,9 @@ class MainWindow(QMainWindow, WindowMixin):
         self.canvas.set_editing(edit)
         self.actions.createMode.setEnabled(edit)
         self.actions.editMode.setEnabled(not edit)
+        if not edit:  # 进入绘制模式时（按W键时）
+            print("Entering draw mode, resetting previous label")
+            self.prev_used_label = None
 
     def set_create_mode(self):
         assert self.advanced()
@@ -886,6 +894,36 @@ class MainWindow(QMainWindow, WindowMixin):
         self.actions.shapeFillColor.setEnabled(selected)
 
     def add_label(self, shape):
+        caller = sys._getframe().f_back.f_code.co_name
+        
+        # 只在非加载情况下打印调试信息
+        if caller != "load_labels":
+            print("\n=== Debug add_label ===")
+            print(f"Current shape label: {shape.label}")
+            print(f"Last used label: {self.prev_used_label}")
+            print(f"Called from: {caller}")
+            print(f"Shape id: {id(shape)}")  # 添加shape的id来追踪是否是同一个对象
+        
+        if caller == "new_shape":
+            if self.prev_used_label:
+                print(f"Using previous label: {self.prev_used_label}")
+                shape.label = self.prev_used_label
+                shape.line_color = generate_color_by_text(self.prev_used_label)
+                shape.fill_color = generate_color_by_text(self.prev_used_label)
+            else:
+                print("No last label found, showing dialog...")
+                text = self.label_dialog.pop_up(text=self.prev_label_text)
+                if text is None:
+                    print("Dialog cancelled")
+                    self.canvas.reset_all_lines()
+                    return
+                print(f"New label selected: {text}")
+                shape.label = text
+                shape.line_color = generate_color_by_text(text)
+                shape.fill_color = generate_color_by_text(text)
+                self.prev_used_label = text
+                print(f"Saved as last label: {self.prev_used_label}")
+        
         shape.paint_label = self.display_label_option.isChecked()
         item = HashableQListWidgetItem(shape.label)
         item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
@@ -983,7 +1021,7 @@ class MainWindow(QMainWindow, WindowMixin):
             else:
                 self.label_file.save(annotation_file_path, shapes, self.file_path, self.image_data,
                                      self.line_color.getRgb(), self.fill_color.getRgb())
-            print('Image:{0} -> Annotation:{1}'.format(self.file_path, annotation_file_path))
+            #print('Image:{0} -> Annotation:{1}'.format(self.file_path, annotation_file_path))
             return True
         except LabelFileError as e:
             self.error_message(u'Error saving label data', u'<b>%s</b>' % e)
@@ -1028,43 +1066,24 @@ class MainWindow(QMainWindow, WindowMixin):
 
     # Callback functions:
     def new_shape(self):
-        """Pop-up and give focus to the label editor.
-
-        position MUST be in global coordinates.
         """
-        if not self.use_default_label_checkbox.isChecked():
-            if len(self.label_hist) > 0:
-                self.label_dialog = LabelDialog(
-                    parent=self, list_item=self.label_hist)
-
-            # Sync single class mode from PR#106
-            if self.single_class_mode.isChecked() and self.lastLabel:
-                text = self.lastLabel
-            else:
-                text = self.label_dialog.pop_up(text=self.prev_label_text)
-                self.lastLabel = text
-        else:
-            text = self.default_label
-
-        # Add Chris
-        self.diffc_button.setChecked(False)
-        if text is not None:
-            self.prev_label_text = text
-            generate_color = generate_color_by_text(text)
-            shape = self.canvas.set_last_label(text, generate_color, generate_color)
+        Called when a new shape is created from canvas
+        """
+        print("\n=== Debug new_shape ===")
+        print(f"Shape count: {len(self.canvas.shapes)}")
+        if self.canvas.shapes:
+            shape = self.canvas.shapes[-1]
+            print(f"Shape id: {id(shape)}")
+            print(f"Shape label before add_label: {shape.label}")
             self.add_label(shape)
-            if self.beginner():  # Switch to edit mode.
-                self.canvas.set_editing(True)
-                self.actions.create.setEnabled(True)
-            else:
-                self.actions.editMode.setEnabled(True)
-            self.set_dirty()
-
-            if text not in self.label_hist:
-                self.label_hist.append(text)
+        
+        if self.beginner():  # Switch to edit mode.
+            self.canvas.set_editing(True)
+            self.actions.create.setEnabled(True)
         else:
-            # self.canvas.undoLastLine()
-            self.canvas.reset_all_lines()
+            self.actions.editMode.setEnabled(True)
+        
+        self.set_dirty()
 
     def scroll_request(self, delta, orientation):
         units = - delta / (8 * 15)
@@ -1761,7 +1780,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_format(FORMAT_YOLO)
         t_yolo_parse_reader = YoloReader(txt_path, self.image)
         shapes = t_yolo_parse_reader.get_shapes()
-        print(shapes)
+        #print(shapes)
         self.load_labels(shapes)
         self.canvas.verified = t_yolo_parse_reader.verified
 

@@ -257,7 +257,8 @@ class Canvas(QWidget):
 
         if ev.button() == Qt.LeftButton:
             if self.drawing():
-                self.handle_drawing(pos)
+                if not self.current:  # 只在开始画的时候记录起始点
+                    self.handle_drawing(pos)
             else:
                 # 传入是否是多选模式的标志
                 multiple_selection_mode = bool(ev.modifiers() & Qt.ControlModifier)
@@ -331,10 +332,31 @@ class Canvas(QWidget):
                 self.selectionChanged.emit(bool(self.selected_shapes))
                 return
         elif ev.button() == Qt.LeftButton:
-            if self.selected_vertex():
-                self.override_cursor(CURSOR_POINT)
-            else:
-                self.override_cursor(CURSOR_GRAB)
+            if self.drawing():
+                if self.current:
+                    # 在鼠标释放时完成矩形绘制
+                    pos = self.transform_pos(ev.pos())
+                    if self.out_of_pixmap(pos):
+                        # 如果超出边界，调整到边界位置
+                        size = self.pixmap.size()
+                        pos = QPointF(
+                            min(max(0, pos.x()), size.width()),
+                            min(max(0, pos.y()), size.height())
+                        )
+                    # 确保添加四个点来形成矩形
+                    init_pos = self.current[0]
+                    self.current.points = []  # 清空现有点
+                    self.current.add_point(init_pos)
+                    self.current.add_point(QPointF(pos.x(), init_pos.y()))
+                    self.current.add_point(pos)
+                    self.current.add_point(QPointF(init_pos.x(), pos.y()))
+                    self.current.close()  # 关闭形状
+                    self.finalise()
+                    self.line.points = []  # 清空临时线
+                elif self.selected_vertex():
+                    self.override_cursor(CURSOR_POINT)
+                else:
+                    self.override_cursor(CURSOR_GRAB)
             # pan
             QApplication.restoreOverrideCursor()
 
@@ -361,18 +383,7 @@ class Canvas(QWidget):
             self.repaint()
 
     def handle_drawing(self, pos):
-        if self.current and self.current.reach_max_points() is False:
-            init_pos = self.current[0]
-            min_x = init_pos.x()
-            min_y = init_pos.y()
-            target_pos = self.line[1]
-            max_x = target_pos.x()
-            max_y = target_pos.y()
-            self.current.add_point(QPointF(max_x, min_y))
-            self.current.add_point(target_pos)
-            self.current.add_point(QPointF(min_x, max_y))
-            self.finalise()
-        elif not self.out_of_pixmap(pos):
+        if not self.out_of_pixmap(pos):
             self.current = Shape()
             self.current.add_point(pos)
             self.line.points = [pos, pos]
@@ -835,6 +846,9 @@ class Canvas(QWidget):
         return False
 
     def set_last_label(self, text, line_color=None, fill_color=None):
+        print("\n=== Debug set_last_label ===")
+        print(f"Setting label: {text}")
+        print(f"Shape id: {id(self.shapes[-1])}")
         assert text
         self.shapes[-1].label = text
         if line_color:
