@@ -99,13 +99,11 @@ def util_qt_strlistclass():
 
 def natural_sort(list, key=lambda s:s):
     """
-    Sort the list into natural alphanumeric order.
+    Sort the list into strict lexicographical order.
+    Example:
+        ['10.jpg', '2.jpg', '5.jpg'] instead of ['2.jpg', '5.jpg', '10.jpg']
     """
-    def get_alphanum_key_func(key):
-        convert = lambda text: int(text) if text.isdigit() else text
-        return lambda s: [convert(c) for c in re.split('([0-9]+)', key(s))]
-    sort_key = get_alphanum_key_func(key)
-    list.sort(key=sort_key)
+    list.sort(key=lambda s: key(s).lower())
 
 
 # QT4 has a trimmed method, in QT5 this is called strip
