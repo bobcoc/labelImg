@@ -315,9 +315,10 @@ class Canvas(QWidget):
                     shape.selected = False
                 self.selected_shapes.clear()
                 
-                # 选中框内的shapes
+                # 选中框内的可见shapes
                 for shape in self.shapes:
-                    if self.is_shape_in_box(shape, self.selection_box):
+                    # 使用isVisible方法检查shape是否可见且在选择框内
+                    if self.isVisible(shape) and self.is_shape_in_box(shape, self.selection_box):
                         self.selected_shapes.append(shape)
                         shape.selected = True
                         # 如果是第一个选中的shape，设置为主选中shape
@@ -846,10 +847,6 @@ class Canvas(QWidget):
         return False
 
     def set_last_label(self, text, line_color=None, fill_color=None):
-        print("\n=== Debug set_last_label ===")
-        print(f"Setting label: {text}")
-        print(f"Shape id: {id(self.shapes[-1])}")
-        assert text
         self.shapes[-1].label = text
         if line_color:
             self.shapes[-1].line_color = line_color

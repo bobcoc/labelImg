@@ -896,33 +896,20 @@ class MainWindow(QMainWindow, WindowMixin):
     def add_label(self, shape):
         caller = sys._getframe().f_back.f_code.co_name
         
-        # 只在非加载情况下打印调试信息
-        if caller != "load_labels":
-            print("\n=== Debug add_label ===")
-            print(f"Current shape label: {shape.label}")
-            print(f"Last used label: {self.prev_used_label}")
-            print(f"Called from: {caller}")
-            print(f"Shape id: {id(shape)}")  # 添加shape的id来追踪是否是同一个对象
-        
         if caller == "new_shape":
             if self.prev_used_label:
-                print(f"Using previous label: {self.prev_used_label}")
                 shape.label = self.prev_used_label
                 shape.line_color = generate_color_by_text(self.prev_used_label)
                 shape.fill_color = generate_color_by_text(self.prev_used_label)
             else:
-                print("No last label found, showing dialog...")
                 text = self.label_dialog.pop_up(text=self.prev_label_text)
                 if text is None:
-                    print("Dialog cancelled")
                     self.canvas.reset_all_lines()
                     return
-                print(f"New label selected: {text}")
                 shape.label = text
                 shape.line_color = generate_color_by_text(text)
                 shape.fill_color = generate_color_by_text(text)
                 self.prev_used_label = text
-                print(f"Saved as last label: {self.prev_used_label}")
         
         shape.paint_label = self.display_label_option.isChecked()
         item = HashableQListWidgetItem(shape.label)
@@ -1066,11 +1053,7 @@ class MainWindow(QMainWindow, WindowMixin):
 
     # Callback functions:
     def new_shape(self):
-        """
-        Called when a new shape is created from canvas
-        """
-        print("\n=== Debug new_shape ===")
-        print(f"Shape count: {len(self.canvas.shapes)}")
+
         if self.canvas.shapes:
             shape = self.canvas.shapes[-1]
             print(f"Shape id: {id(shape)}")
