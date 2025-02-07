@@ -441,7 +441,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.auto_saving.setChecked(settings.get(SETTING_AUTO_SAVE, False))
         # Sync single class mode from PR#106
         self.single_class_mode = QAction(get_str('singleClsMode'), self)
-        self.single_class_mode.setShortcut("Ctrl+Shift+S")
+        self.single_class_mode.setShortcut("Ctrl+Shift+C")  # 改为新的快捷键
         self.single_class_mode.setCheckable(True)
         self.single_class_mode.setChecked(settings.get(SETTING_SINGLE_CLASS, False))
         self.lastLabel = None
@@ -1056,8 +1056,6 @@ class MainWindow(QMainWindow, WindowMixin):
 
         if self.canvas.shapes:
             shape = self.canvas.shapes[-1]
-            print(f"Shape id: {id(shape)}")
-            print(f"Shape label before add_label: {shape.label}")
             self.add_label(shape)
         
         if self.beginner():  # Switch to edit mode.
