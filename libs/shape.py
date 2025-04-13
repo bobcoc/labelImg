@@ -189,7 +189,7 @@ class Shape(object):
 
     def copy(self):
         shape = Shape(self.label)
-        shape.points = [p.copy() for p in self.points]
+        shape.points = [QPointF(p) for p in self.points]
         shape.fill = self.fill
         shape.selected = self.selected
         shape.difficult = self.difficult

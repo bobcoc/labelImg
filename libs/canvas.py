@@ -91,7 +91,7 @@ class Canvas(QWidget):
         self.restore_cursor()
 
     def isVisible(self, shape):
-        return hasattr(shape, 'visible') and shape.visible
+        return shape.visible
 
     def drawing(self):
         return self.mode == self.CREATE
@@ -104,6 +104,7 @@ class Canvas(QWidget):
         if not value:  # Create
             self.un_highlight()
             self.deselect_shape()
+            self.draw_square = False  # 重置draw_square状态
         self.prev_point = QPointF()
         self.repaint()
 
@@ -388,12 +389,10 @@ class Canvas(QWidget):
     def set_hiding(self, enable=True):
         self._hide_background = self.hide_background if enable else False
         if self._hide_background:
+            # 只在启用隐藏时修改可见性
             for shape in self.shapes:
                 if shape != self.selected_shape:
                     shape.visible = False
-        else:
-            for shape in self.shapes:
-                shape.visible = True
         self.repaint()
 
     def handle_drawing(self, pos):
@@ -602,16 +601,15 @@ class Canvas(QWidget):
 
         # 先绘制所有未选中的shapes
         for shape in self.shapes:
-            if not self.isVisible(shape):  # 跳过不可见的形状
+            if not shape.visible:  # 跳过不可见的形状
                 continue
-            if (shape.selected or not self._hide_background):
-                if shape not in self.selected_shapes:  # 只绘制未选中的
-                    shape.fill = shape.selected or shape == self.h_shape
-                    shape.paint(p)
+            if shape not in self.selected_shapes:  # 只绘制未选中的
+                shape.fill = shape.selected or shape == self.h_shape
+                shape.paint(p)
 
         # 再绘制选中的shapes，确保它们在最上层
         for shape in self.selected_shapes:
-            if self.isVisible(shape):  # 只绘制可见的形状
+            if shape.visible:  # 只绘制可见的形状
                 shape.fill = True  # 选中的shape填充显示
                 shape.paint(p)
 
@@ -680,7 +678,7 @@ class Canvas(QWidget):
                 # 计算灰度值
                 gray_value = (color.red() + color.green() + color.blue()) / 3
                 # 使用更严格的阈值
-                return gray_value < 150
+                return gray_value < 170
             
             # 定义边距
             MARGIN = 0  # 边距像素
@@ -752,6 +750,7 @@ class Canvas(QWidget):
         self.shapes.append(self.current)
         self.current = None
         self.set_hiding(False)
+        self.draw_square = False  # 完成绘制后重置draw_square状态
         self.newShape.emit()
         self.update()
 
@@ -801,6 +800,7 @@ class Canvas(QWidget):
             print('ESC press')
             self.current = None
             self.drawingPolygon.emit(False)
+            self.draw_square = False  # ESC取消时重置draw_square状态
             self.update()
         elif key == Qt.Key_Return and self.can_close_shape():
             self.finalise()
@@ -812,12 +812,17 @@ class Canvas(QWidget):
             self.move_one_pixel('Up')
         elif key == Qt.Key_Down and self.selected_shape:
             self.move_one_pixel('Down')
-        elif ev.key() == Qt.Key_Control:
+        elif key == Qt.Key_Control:
             self.is_ctrl_pressed = True
+        elif key == Qt.Key_Shift:  # 添加Shift键按下的处理
+            if self.drawing():
+                self.draw_square = True
 
     def keyReleaseEvent(self, ev):
         if ev.key() == Qt.Key_Control:
             self.is_ctrl_pressed = False
+        elif ev.key() == Qt.Key_Shift:  # 添加Shift键释放的处理
+            self.draw_square = False
 
     def move_one_pixel(self, direction):
         """移动选中的shape(s)一个像素"""
@@ -900,8 +905,9 @@ class Canvas(QWidget):
         self.repaint()
 
     def set_shape_visible(self, shape, value):
-        self.visible[shape] = value
-        self.repaint()
+        """设置形状的可见性"""
+        shape.visible = value
+        self.update()
 
     def current_cursor(self):
         cursor = QApplication.overrideCursor()
@@ -923,7 +929,7 @@ class Canvas(QWidget):
         self.deselect_shape()
         self.un_highlight()
         self.selected_shape_copy = None
-
+        self.draw_square = False  # 重置draw_square状态
         self.restore_cursor()
         self.pixmap = None
         self.update()

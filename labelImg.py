@@ -299,10 +299,10 @@ class MainWindow(QMainWindow, WindowMixin):
 
         hide_all = action(get_str('hideAllBox'), partial(self.toggle_polygons, False),
                           'Ctrl+H', 'hide', get_str('hideAllBoxDetail'),
-                          enabled=False)
+                          enabled=True)
         show_all = action(get_str('showAllBox'), partial(self.toggle_polygons, True),
                           'Ctrl+A', 'hide', get_str('showAllBoxDetail'),
-                          enabled=False)
+                          enabled=True)
 
         help_default = action(get_str('tutorialDefault'), self.show_default_tutorial_dialog, None, 'help', get_str('tutorialDetail'))
         show_info = action(get_str('info'), self.show_info_dialog, None, 'help', get_str('info'))
@@ -1118,7 +1118,16 @@ class MainWindow(QMainWindow, WindowMixin):
             shape.line_color = generate_color_by_text(shape.label)
             self.set_dirty()
         else:  # User probably changed item visibility
+            shape.visible = item.checkState() == Qt.Checked
             self.canvas.set_shape_visible(shape, item.checkState() == Qt.Checked)
+            # 如果形状被隐藏，取消其选中状态
+            if not shape.visible:
+                if shape in self.canvas.selected_shapes:
+                    self.canvas.selected_shapes.remove(shape)
+                    shape.selected = False
+                if shape == self.canvas.selected_shape:
+                    self.canvas.selected_shape = None
+            self.canvas.update()
 
     # Callback functions:
     def new_shape(self):
@@ -1228,8 +1237,21 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_light(self.light_widget.value() + increment)
 
     def toggle_polygons(self, value):
+        """切换所有标签的显示状态"""
         for item, shape in self.items_to_shapes.items():
             item.setCheckState(Qt.Checked if value else Qt.Unchecked)
+            shape.visible = value
+            # 如果隐藏，则取消选中状态
+            if not value and shape in self.canvas.selected_shapes:
+                self.canvas.selected_shapes.remove(shape)
+                shape.selected = False
+            if not value and shape == self.canvas.selected_shape:
+                self.canvas.selected_shape = None
+        self.canvas.update()
+
+    def show_all_shapes(self):
+        """显示所有标签"""
+        self.toggle_polygons(True)
 
     def load_file(self, file_path=None):
         print(f"\n[Debug] load_file - Current filter at start: {self.current_filter_label}")
@@ -1936,12 +1958,6 @@ class MainWindow(QMainWindow, WindowMixin):
             for action in self.actions.onShapesPresent:
                 action.setEnabled(False)
 
-    def show_all_shapes(self):
-        """显示所有标注"""
-        for shape in self.shapes:
-            shape.fill = True
-        self.update()
-
     def move_visible_shapes(self, dx, dy):
         """移动所有可见的标注框
         
@@ -1977,29 +1993,28 @@ class MainWindow(QMainWindow, WindowMixin):
         """隐藏当前选中的标注并取消选中状态"""
         # 检查是否有选中的shapes
         if not self.canvas.selected_shapes and not self.canvas.selected_shape:
-            QMessageBox.information(self, '提示', '请先选择一个标注')
             return
         
-        # 处理多选情况
+        # 创建一个集合来存储所有需要隐藏的shapes
+        shapes_to_hide = set()
+        
+        # 收集所有需要隐藏的shapes
         if self.canvas.selected_shapes:
-            for shape in self.canvas.selected_shapes:
-                item = self.shapes_to_items.get(shape)
-                if item:
-                    item.setCheckState(Qt.Unchecked)
-                    # 取消选中状态
-                    shape.selected = False
-            # 清空选中列表
-            self.canvas.selected_shapes.clear()
-            
-        # 处理单选情况
-        elif self.canvas.selected_shape:
-            item = self.shapes_to_items.get(self.canvas.selected_shape)
+            shapes_to_hide.update(self.canvas.selected_shapes)
+        if self.canvas.selected_shape and self.canvas.selected_shape not in shapes_to_hide:
+            shapes_to_hide.add(self.canvas.selected_shape)
+        
+        # 处理所有需要隐藏的shapes
+        for shape in shapes_to_hide:
+            item = self.shapes_to_items.get(shape)
             if item:
                 item.setCheckState(Qt.Unchecked)
-                # 取消选中状态
-                self.canvas.selected_shape.selected = False
-            # 清空选中的shape
-            self.canvas.selected_shape = None
+                shape.visible = False
+                shape.selected = False
+        
+        # 清空所有选中状态
+        self.canvas.selected_shapes.clear()
+        self.canvas.selected_shape = None
         
         # 更新标签列表的选中状态
         self.label_list.clearSelection()
