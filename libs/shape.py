@@ -34,7 +34,7 @@ class Shape(object):
     vertex_fill_color = DEFAULT_VERTEX_FILL_COLOR
     h_vertex_fill_color = DEFAULT_HVERTEX_FILL_COLOR
     point_type = P_ROUND
-    point_size = 16
+    point_size = 8
     scale = 1.0
     label_font_size = 8
 
@@ -45,6 +45,7 @@ class Shape(object):
         self.selected = False
         self.difficult = difficult
         self.paint_label = paint_label
+        self.visible = True
 
         self._highlight_index = None
         self._highlight_mode = self.NEAR_VERTEX
@@ -187,16 +188,16 @@ class Shape(object):
         self._highlight_index = None
 
     def copy(self):
-        shape = Shape("%s" % self.label)
-        shape.points = [p for p in self.points]
+        shape = Shape(self.label)
+        shape.points = [p.copy() for p in self.points]
         shape.fill = self.fill
         shape.selected = self.selected
+        shape.difficult = self.difficult
+        shape.paint_label = self.paint_label
+        shape.visible = self.visible
         shape._closed = self._closed
         if self.line_color != Shape.line_color:
             shape.line_color = self.line_color
-        if self.fill_color != Shape.fill_color:
-            shape.fill_color = self.fill_color
-        shape.difficult = self.difficult
         return shape
 
     def __len__(self):

@@ -91,7 +91,7 @@ class Canvas(QWidget):
         self.restore_cursor()
 
     def isVisible(self, shape):
-        return self.visible.get(shape, True)
+        return hasattr(shape, 'visible') and shape.visible
 
     def drawing(self):
         return self.mode == self.CREATE
@@ -380,8 +380,21 @@ class Canvas(QWidget):
         if self.selected_shape:
             # Only hide other shapes if there is a current selection.
             # Otherwise the user will not be able to select a shape.
-            self.set_hiding(True)
+            for shape in self.shapes:
+                if shape != self.selected_shape:
+                    shape.visible = not value
             self.repaint()
+
+    def set_hiding(self, enable=True):
+        self._hide_background = self.hide_background if enable else False
+        if self._hide_background:
+            for shape in self.shapes:
+                if shape != self.selected_shape:
+                    shape.visible = False
+        else:
+            for shape in self.shapes:
+                shape.visible = True
+        self.repaint()
 
     def handle_drawing(self, pos):
         if not self.out_of_pixmap(pos):
@@ -391,9 +404,6 @@ class Canvas(QWidget):
             self.set_hiding()
             self.drawingPolygon.emit(True)
             self.update()
-
-    def set_hiding(self, enable=True):
-        self._hide_background = self.hide_background if enable else False
 
     def can_close_shape(self):
         return self.drawing() and self.current and len(self.current) > 2
@@ -592,14 +602,16 @@ class Canvas(QWidget):
 
         # 先绘制所有未选中的shapes
         for shape in self.shapes:
-            if (shape.selected or not self._hide_background) and self.isVisible(shape):
+            if not self.isVisible(shape):  # 跳过不可见的形状
+                continue
+            if (shape.selected or not self._hide_background):
                 if shape not in self.selected_shapes:  # 只绘制未选中的
                     shape.fill = shape.selected or shape == self.h_shape
                     shape.paint(p)
 
         # 再绘制选中的shapes，确保它们在最上层
         for shape in self.selected_shapes:
-            if self.isVisible(shape):
+            if self.isVisible(shape):  # 只绘制可见的形状
                 shape.fill = True  # 选中的shape填充显示
                 shape.paint(p)
 
@@ -881,6 +893,10 @@ class Canvas(QWidget):
     def load_shapes(self, shapes):
         self.shapes = list(shapes)
         self.current = None
+        # 确保所有形状都有可见性属性
+        for shape in self.shapes:
+            if not hasattr(shape, 'visible'):
+                shape.visible = True
         self.repaint()
 
     def set_shape_visible(self, shape, value):
