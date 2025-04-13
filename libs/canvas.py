@@ -668,7 +668,7 @@ class Canvas(QWidget):
                 # 计算灰度值
                 gray_value = (color.red() + color.green() + color.blue()) / 3
                 # 使用更严格的阈值
-                return gray_value < 220
+                return gray_value < 150
             
             # 定义边距
             MARGIN = 0  # 边距像素

@@ -79,6 +79,10 @@ class MainWindow(QMainWindow, WindowMixin):
         self.setWindowTitle(__appname__)
         # 在这里初始化 prev_used_label，确保它在任何方法调用之前就存在
         self.prev_used_label = None
+        # 添加当前过滤标签的变量
+        self.current_filter_label = None
+        # 添加标志来标识是否是用户手动选择
+        self.is_user_selection = True
         # Load setting in the main thread
         self.settings = Settings()
         self.settings.load()
@@ -933,11 +937,14 @@ class MainWindow(QMainWindow, WindowMixin):
         del self.items_to_shapes[item]
 
     def load_labels(self, shapes):
+        print(f"\n[Debug] load_labels - Current filter label: {self.current_filter_label}")
         s = []
+        total_count = len(shapes)
+        
         for label, points, line_color, fill_color, difficult in shapes:
+            print(f"[Debug] Loading label: {label}")
             shape = Shape(label=label)
             for x, y in points:
-
                 # Ensure the labels are within the bounds of the image. If not, fix them.
                 x, y, snapped = self.canvas.snap_point_to_canvas(x, y)
                 if snapped:
@@ -958,11 +965,29 @@ class MainWindow(QMainWindow, WindowMixin):
             else:
                 shape.fill_color = generate_color_by_text(label)
 
-            self.add_label(shape)
+            # 添加标签到列表，但根据过滤条件设置显示状态
+            item = HashableQListWidgetItem(shape.label)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            # 如果有过滤标签且不匹配，则设置为未选中状态
+            if self.current_filter_label and label != self.current_filter_label:
+                item.setCheckState(Qt.Unchecked)
+            else:
+                item.setCheckState(Qt.Checked)
+            item.setBackground(generate_color_by_text(shape.label))
+            self.items_to_shapes[item] = shape
+            self.shapes_to_items[shape] = item
+            self.label_list.addItem(item)
+            
+        print(f"[Debug] Total shapes loaded: {len(s)}")
         self.update_combo_box()
-        self.canvas.load_shapes(s)
+        # 只在画布上显示选中的形状
+        visible_shapes = [shape for shape in s 
+                         if not self.current_filter_label or 
+                         shape.label == self.current_filter_label]
+        self.canvas.load_shapes(visible_shapes)
 
     def update_combo_box(self):
+        print(f"\n[Debug] update_combo_box - Current filter: {self.current_filter_label}")
         # Get the unique labels and add them to the Combobox.
         items_text_list = [str(self.label_list.item(i).text()) for i in range(self.label_list.count())]
 
@@ -971,7 +996,15 @@ class MainWindow(QMainWindow, WindowMixin):
         unique_text_list.append("")
         unique_text_list.sort()
 
+        # 暂时禁用用户选择标志，防止触发过滤
+        self.is_user_selection = False
         self.combo_box.update_items(unique_text_list)
+        
+        # 如果存在过滤标签，恢复选择
+        if self.current_filter_label is not None:
+            print(f"[Debug] Restoring filter to: {self.current_filter_label}")
+            self.combo_box.cb.setCurrentText(self.current_filter_label)
+        self.is_user_selection = True
 
     def save_labels(self, annotation_file_path):
         annotation_file_path = ustr(annotation_file_path)
@@ -1020,14 +1053,38 @@ class MainWindow(QMainWindow, WindowMixin):
         self.shape_selection_changed(True)
 
     def combo_selection_changed(self, index):
+        # 只在用户手动选择时更新过滤
+        if not self.is_user_selection:
+            print(f"[Debug] Ignoring automatic combo selection change")
+            return
+            
         text = self.combo_box.cb.itemText(index)
+        print(f"\n[Debug] combo_selection_changed - Selected label: {text}")
+        # 更新当前过滤标签
+        self.current_filter_label = text if text != "" else None
+        print(f"[Debug] Updated current_filter_label to: {self.current_filter_label}")
+        
+        # 更新所有标签项的显示状态并收集可见的形状
+        visible_shapes = []
         for i in range(self.label_list.count()):
-            if text == "":
-                self.label_list.item(i).setCheckState(2)
-            elif text != self.label_list.item(i).text():
-                self.label_list.item(i).setCheckState(0)
+            item = self.label_list.item(i)
+            shape = self.items_to_shapes[item]
+            
+            if text == "" or item.text() == text:
+                item.setCheckState(Qt.Checked)
+                shape.selected = False  # 清除选中状态
+                visible_shapes.append(shape)
             else:
-                self.label_list.item(i).setCheckState(2)
+                item.setCheckState(Qt.Unchecked)
+                if shape in self.canvas.selected_shapes:
+                    self.canvas.selected_shapes.remove(shape)
+                if shape == self.canvas.selected_shape:
+                    self.canvas.selected_shape = None
+        
+        # 更新画布显示
+        print(f"[Debug] Updating canvas with {len(visible_shapes)} visible shapes")
+        self.canvas.shapes = visible_shapes  # 直接更新画布的形状列表
+        self.canvas.update()
 
     def default_label_combo_selection_changed(self, index):
         self.default_label=self.label_hist[index]
@@ -1163,8 +1220,11 @@ class MainWindow(QMainWindow, WindowMixin):
             item.setCheckState(Qt.Checked if value else Qt.Unchecked)
 
     def load_file(self, file_path=None):
-        """Load the specified file, or the last opened file if None."""
+        print(f"\n[Debug] load_file - Current filter at start: {self.current_filter_label}")
+        saved_filter = self.current_filter_label  # 保存当前的过滤设置
         self.reset_state()
+        self.current_filter_label = saved_filter  # 恢复过滤设置
+        print(f"[Debug] load_file - Restored filter: {self.current_filter_label}")
         self.canvas.setEnabled(False)
         if file_path is None:
             file_path = self.settings.get(SETTING_FILENAME)
@@ -1222,6 +1282,9 @@ class MainWindow(QMainWindow, WindowMixin):
             self.file_path = unicode_file_path
             self.canvas.load_pixmap(QPixmap.fromImage(image))
             if self.label_file:
+                # 在加载标签之前，如果存在过滤标签，设置下拉框
+                if self.current_filter_label is not None:
+                    self.combo_box.cb.setCurrentText(self.current_filter_label)
                 self.load_labels(self.label_file.shapes)
             self.set_clean()
             self.canvas.setEnabled(True)
@@ -1485,6 +1548,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.save_file()
 
     def open_prev_image(self, _value=False):
+        print(f"\n[Debug] open_prev_image - Current filter before loading: {self.current_filter_label}")
         # Proceeding prev image without dialog if having any label
         if self.auto_saving.isChecked():
             if self.default_save_dir is not None:
@@ -1507,9 +1571,13 @@ class MainWindow(QMainWindow, WindowMixin):
             self.cur_img_idx -= 1
             filename = self.m_img_list[self.cur_img_idx]
             if filename:
+                print(f"[Debug] Loading previous image: {filename}")
+                print(f"[Debug] Filter label before load_file: {self.current_filter_label}")
                 self.load_file(filename)
+                print(f"[Debug] Filter label after load_file: {self.current_filter_label}")
 
     def open_next_image(self, _value=False):
+        print(f"\n[Debug] open_next_image - Current filter before loading: {self.current_filter_label}")
         # Proceeding next image without dialog if having any label
         if self.auto_saving.isChecked():
             if self.default_save_dir is not None:
@@ -1538,7 +1606,10 @@ class MainWindow(QMainWindow, WindowMixin):
                 filename = self.m_img_list[self.cur_img_idx]
 
         if filename:
+            print(f"[Debug] Loading next image: {filename}")
+            print(f"[Debug] Filter label before load_file: {self.current_filter_label}")
             self.load_file(filename)
+            print(f"[Debug] Filter label after load_file: {self.current_filter_label}")
 
     def open_file(self, _value=False):
         if not self.may_continue():
