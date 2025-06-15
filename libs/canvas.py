@@ -748,6 +748,20 @@ class Canvas(QWidget):
                 QPointF(x1, y2)
             ]
 
+            # 新增：统计有效像素点数量，若不超过30则取消添加
+            valid_count = 0
+            for x in range(x1, x2):
+                for y in range(y1, y2):
+                    color = QColor(image.pixel(x, y))
+                    gray_value = (color.red() + color.green() + color.blue()) / 3
+                    if gray_value < self.content_threshold:
+                        valid_count += 1
+            if valid_count <= 30:
+                self.current = None
+                self.drawingPolygon.emit(False)
+                self.update()
+                return
+
         self.current.close()
         self.shapes.append(self.current)
         self.current = None
