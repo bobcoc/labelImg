@@ -65,7 +65,7 @@ class Canvas(QWidget):
         self.setFocusPolicy(Qt.WheelFocus)
         self.verified = False
         self.draw_square = False
-
+        self.content_threshold = 170  # 新增内容像素灰度阈值
         # initialisation for panning
         self.pan_initial_pos = QPoint()
 
@@ -80,7 +80,9 @@ class Canvas(QWidget):
     def set_drawing_color(self, qcolor):
         self.drawing_line_color = qcolor
         self.drawing_rect_color = qcolor
-
+    def set_content_threshold(self, value):
+        self.content_threshold = value
+        self.update()
     def enterEvent(self, ev):
         self.override_cursor(self._cursor)
 
@@ -678,7 +680,7 @@ class Canvas(QWidget):
                 # 计算灰度值
                 gray_value = (color.red() + color.green() + color.blue()) / 3
                 # 使用更严格的阈值
-                return gray_value < 170
+                return gray_value < self.content_threshold
             
             # 定义边距
             MARGIN = 0  # 边距像素

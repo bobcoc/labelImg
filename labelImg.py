@@ -157,7 +157,17 @@ class MainWindow(QMainWindow, WindowMixin):
         # Create and add combobox for showing unique labels in group
         self.combo_box = ComboBox(self)
         list_layout.addWidget(self.combo_box)
-
+        self.threshold_slider = QSlider(Qt.Horizontal)
+        self.threshold_slider.setMinimum(0)
+        self.threshold_slider.setMaximum(255)
+        self.threshold_slider.setValue(170)
+        self.threshold_slider.setTickInterval(5)
+        self.threshold_slider.setTickPosition(QSlider.TicksBelow)
+        self.threshold_slider.setToolTip('内容像素灰度阈值')
+        self.threshold_label = QLabel('内容阈值: 170')
+        self.threshold_slider.valueChanged.connect(self.on_threshold_changed)
+        list_layout.addWidget(self.threshold_label)
+        list_layout.addWidget(self.threshold_slider)
         # Create and add a widget for showing current label items
         self.label_list = QListWidget()
         label_list_container = QWidget()
@@ -600,7 +610,9 @@ class MainWindow(QMainWindow, WindowMixin):
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
             self.canvas.set_drawing_shape_to_square(False)
-
+    def on_threshold_changed(self, value):
+        self.threshold_label.setText(f'内容阈值: {value}')
+        self.canvas.set_content_threshold(value)
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Control:
             # Draw rectangle if Ctrl is pressed
