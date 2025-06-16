@@ -509,7 +509,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.max_recent = 7
         self.line_color = None
         self.fill_color = None
-        self.zoom_level = 100
+        self.zoom_level = 100  # 默认100%
         self.fit_window = False
         # Add Chris
         self.difficult = False
@@ -606,6 +606,13 @@ class MainWindow(QMainWindow, WindowMixin):
         self.last_label = None  # 添加这个变量来记住上一次的标签
 
         self.prev_used_label = None  # 新增一个专门用于记住上次标签的变量
+
+        if not hasattr(self, '_has_loaded_once'):
+            self.zoom_level = 100
+            self.zoom_widget.setValue(self.zoom_level)
+            self._has_loaded_once = True
+        else:
+            self.zoom_widget.setValue(self.zoom_level)
 
     def keyReleaseEvent(self, event):
         if event.key() == Qt.Key_Control:
@@ -1327,14 +1334,11 @@ class MainWindow(QMainWindow, WindowMixin):
             self.image = image
             self.file_path = unicode_file_path
             self.canvas.load_pixmap(QPixmap.fromImage(image))
-            if self.label_file:
-                # 在加载标签之前，如果存在过滤标签，设置下拉框
-                if self.current_filter_label is not None:
-                    self.combo_box.cb.setCurrentText(self.current_filter_label)
-                self.load_labels(self.label_file.shapes)
-            self.set_clean()
-            self.canvas.setEnabled(True)
-            self.adjust_scale(initial=True)
+            if not hasattr(self, '_has_loaded_once'):
+                self.adjust_scale(initial=True)
+                self._has_loaded_once = True
+            else:
+                self.zoom_widget.setValue(self.zoom_level)
             self.paint_canvas()
             self.add_recent_file(self.file_path)
             self.toggle_actions(True)
@@ -1389,9 +1393,15 @@ class MainWindow(QMainWindow, WindowMixin):
             
 
     def resizeEvent(self, event):
-        if self.canvas and not self.image.isNull()\
-           and self.zoom_mode != self.MANUAL_ZOOM:
-            self.adjust_scale()
+        if self.canvas and not self.image.isNull():
+            # 首次加载后，若窗口发生resize且为手动缩放，自动适应窗口
+            if hasattr(self, '_has_loaded_once') and self._has_loaded_once and self.zoom_mode == self.MANUAL_ZOOM:
+                self.adjust_scale(initial=True)
+                self.zoom_level = self.zoom_widget.value()
+                # 只自动适应一次
+                self._has_loaded_once = False
+            elif self.zoom_mode != self.MANUAL_ZOOM:
+                self.adjust_scale()
         super(MainWindow, self).resizeEvent(event)
 
     def paint_canvas(self):
@@ -1594,6 +1604,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.save_file()
 
     def open_prev_image(self, _value=False):
+        self.zoom_level = self.zoom_widget.value()
         print(f"\n[Debug] open_prev_image - Current filter before loading: {self.current_filter_label}")
         print(f"[Debug] Current shapes before save: {len(self.canvas.shapes)}")
         # Proceeding prev image without dialog if having any label
@@ -1626,6 +1637,7 @@ class MainWindow(QMainWindow, WindowMixin):
                 print(f"[Debug] Loaded shapes count: {len(self.canvas.shapes)}")
 
     def open_next_image(self, _value=False):
+        self.zoom_level = self.zoom_widget.value()
         print(f"\n[Debug] open_next_image - Current filter before loading: {self.current_filter_label}")
         print(f"[Debug] Current shapes before save: {len(self.canvas.shapes)}")
         # Proceeding next image without dialog if having any label
