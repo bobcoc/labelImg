@@ -670,6 +670,12 @@ class Canvas(QWidget):
             y1 = max(0, y1)
             x2 = min(self.pixmap.width(), x2)
             y2 = min(self.pixmap.height(), y2)
+
+            # 确保为整数
+            x1 = int(round(x1))
+            x2 = int(round(x2))
+            y1 = int(round(y1))
+            y2 = int(round(y2))
             
             # 将QPixmap转换为QImage以进行像素分析
             image = self.pixmap.toImage()
@@ -733,12 +739,18 @@ class Canvas(QWidget):
             MIN_SIZE = 5  # 最小尺寸（像素）
             if x2 - x1 < MIN_SIZE:
                 center = (x1 + x2) / 2
-                x1 = max(0, center - MIN_SIZE / 2)
-                x2 = min(self.pixmap.width(), center + MIN_SIZE / 2)
+                x1 = int(max(0, center - MIN_SIZE / 2))
+                x2 = int(min(self.pixmap.width(), center + MIN_SIZE / 2))
             if y2 - y1 < MIN_SIZE:
                 center = (y1 + y2) / 2
-                y1 = max(0, center - MIN_SIZE / 2)
-                y2 = min(self.pixmap.height(), center + MIN_SIZE / 2)
+                y1 = int(max(0, center - MIN_SIZE / 2))
+                y2 = int(min(self.pixmap.height(), center + MIN_SIZE / 2))
+            
+            # 再次确保为整数
+            x1 = int(round(x1))
+            x2 = int(round(x2))
+            y1 = int(round(y1))
+            y2 = int(round(y2))
             
             # 更新形状的点
             self.current.points = [
