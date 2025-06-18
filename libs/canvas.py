@@ -65,7 +65,7 @@ class Canvas(QWidget):
         self.setFocusPolicy(Qt.WheelFocus)
         self.verified = False
         self.draw_square = False
-        self.content_threshold = 170  # 新增内容像素灰度阈值
+        self.content_threshold = 200  # 新增内容像素灰度阈值
         # initialisation for panning
         self.pan_initial_pos = QPoint()
 
@@ -317,7 +317,6 @@ class Canvas(QWidget):
                 for shape in self.selected_shapes:
                     shape.selected = False
                 self.selected_shapes.clear()
-                
                 # 选中框内的可见shapes
                 for shape in self.shapes:
                     # 使用isVisible方法检查shape是否可见且在选择框内
@@ -327,7 +326,6 @@ class Canvas(QWidget):
                         # 如果是第一个选中的shape，设置为主选中shape
                         if not self.selected_shape:
                             self.selected_shape = shape
-                
                 # 清除选择框
                 self.selection_box = None
                 self.selection_box_start = None
@@ -336,6 +334,11 @@ class Canvas(QWidget):
                 self.selectionChanged.emit(bool(self.selected_shapes))
                 return
         elif ev.button() == Qt.LeftButton:
+            # 编辑模式下拖动顶点释放时自动收缩
+            if self.editing() and self.selected_shape and self.selected_vertex() and len(self.selected_shape.points) == 4:
+                self._shrink_rect_shape_to_content(self.selected_shape)
+                self.shapeMoved.emit()
+                self.update()
             if self.drawing():
                 if self.current:
                     # 在鼠标释放时完成矩形绘制
@@ -707,7 +710,7 @@ class Canvas(QWidget):
                 has_content = False
                 for y in range(y1, y2):
                     if is_content_pixel(x, y):
-                        x2 = min(x + MARGIN, self.pixmap.width())
+                        x2 = min(x + 1, self.pixmap.width())
                         has_content = True
                         break
                 if has_content:
@@ -729,7 +732,7 @@ class Canvas(QWidget):
                 has_content = False
                 for x in range(x1, x2):
                     if is_content_pixel(x, y):
-                        y2 = min(y + MARGIN, self.pixmap.height())
+                        y2 = min(y + 1, self.pixmap.height())
                         has_content = True
                         break
                 if has_content:
@@ -980,3 +983,89 @@ class Canvas(QWidget):
                     point.setX(point.x() + dx)
                     point.setY(point.y() + dy)
             self.update()
+
+    def _shrink_rect_shape_to_content(self, shape):
+        """将传入的4点矩形shape自动收缩到有效内容区域，逻辑与finalise一致。"""
+        if not self.pixmap or not shape or len(shape.points) != 4:
+            return
+        rect = shape.bounding_rect()
+        x1, y1, x2, y2 = int(rect.x()), int(rect.y()), int(rect.x() + rect.width()), int(rect.y() + rect.height())
+        x1 = max(0, x1)
+        y1 = max(0, y1)
+        x2 = min(self.pixmap.width(), x2)
+        y2 = min(self.pixmap.height(), y2)
+        x1 = int(round(x1))
+        x2 = int(round(x2))
+        y1 = int(round(y1))
+        y2 = int(round(y2))
+        image = self.pixmap.toImage()
+        def is_content_pixel(x, y):
+            color = QColor(image.pixel(x, y))
+            gray_value = (color.red() + color.green() + color.blue()) / 3
+            return gray_value < self.content_threshold
+        MARGIN = 0
+        for x in range(x1, x2):
+            has_content = False
+            for y in range(y1, y2):
+                if is_content_pixel(x, y):
+                    x1 = max(x - MARGIN, 0)
+                    has_content = True
+                    break
+            if has_content:
+                break
+        for x in range(x2 - 1, x1, -1):
+            has_content = False
+            for y in range(y1, y2):
+                if is_content_pixel(x, y):
+                    x2 = min(x + 1, self.pixmap.width())
+                    has_content = True
+                    break
+            if has_content:
+                break
+        for y in range(y1, y2):
+            has_content = False
+            for x in range(x1, x2):
+                if is_content_pixel(x, y):
+                    y1 = max(y - MARGIN, 0)
+                    has_content = True
+                    break
+            if has_content:
+                break
+        for y in range(y2 - 1, y1, -1):
+            has_content = False
+            for x in range(x1, x2):
+                if is_content_pixel(x, y):
+                    y2 = min(y + 1, self.pixmap.height())
+                    has_content = True
+                    break
+            if has_content:
+                break
+        MIN_SIZE = 5
+        if x2 - x1 < MIN_SIZE:
+            center = (x1 + x2) / 2
+            x1 = int(max(0, center - MIN_SIZE / 2))
+            x2 = int(min(self.pixmap.width(), center + MIN_SIZE / 2))
+        if y2 - y1 < MIN_SIZE:
+            center = (y1 + y2) / 2
+            y1 = int(max(0, center - MIN_SIZE / 2))
+            y2 = int(min(self.pixmap.height(), center + MIN_SIZE / 2))
+        x1 = int(round(x1))
+        x2 = int(round(x2))
+        y1 = int(round(y1))
+        y2 = int(round(y2))
+        # 统计有效像素点数量，若不超过30则不处理
+        valid_count = 0
+        for x in range(x1, x2):
+            for y in range(y1, y2):
+                color = QColor(image.pixel(x, y))
+                gray_value = (color.red() + color.green() + color.blue()) / 3
+                if gray_value < self.content_threshold:
+                    valid_count += 1
+        if valid_count <= 30:
+            return
+        shape.points = [
+            QPointF(x1, y1),
+            QPointF(x2, y1),
+            QPointF(x2, y2),
+            QPointF(x1, y2)
+        ]
